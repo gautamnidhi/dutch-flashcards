@@ -39,6 +39,7 @@ export default function Home() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showDifficultOnly, setShowDifficultOnly] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState("");
   const [importMessage, setImportMessage] = useState("");
 
@@ -104,10 +105,6 @@ export default function Home() {
           transformHeader: (header) =>
             header.replace(/^\uFEFF/, "").trim().toLowerCase(),
         });
-
-        if (results.errors.length > 0) {
-          console.error("CSV parse errors:", results.errors);
-        }
 
         const parsedCards = rowsToCards(results.data);
         addCards(parsedCards);
@@ -197,6 +194,7 @@ export default function Home() {
     setCards(shuffleCards(newCards));
     setCurrentIndex(0);
     setShowAnswer(false);
+    setShowUpload(false);
     setImportMessage(`Imported ${newCards.length} cards successfully.`);
   }
 
@@ -277,111 +275,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-6 text-gray-900">
+    <main className="min-h-screen bg-gray-100 px-4 py-4 pb-28 text-gray-900">
       <div className="mx-auto max-w-xl">
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold">Dutch → English Flashcards</h1>
-          <p className="mt-2 text-gray-600">
-            Upload a CSV or Excel file, mark difficult cards, and study them
-            later.
+        <header className="mb-4">
+          <h1 className="text-2xl font-bold">Dutch → English</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Tap the card to reveal the answer.
           </p>
         </header>
-
-        <section className="mb-6 rounded-2xl bg-white p-4 shadow">
-          <label className="block">
-            <span className="mb-2 block font-medium">Upload file</span>
-
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              className="block w-full rounded-lg border border-gray-300 p-2"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-
-                if (file) {
-                  handleFileUpload(file);
-                  event.target.value = "";
-                }
-              }}
-            />
-          </label>
-
-          <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm">
-            <p className="font-medium">CSV example:</p>
-
-            <pre className="mt-2 overflow-auto text-xs">
-{`Dutch,English
-hond,dog
-kat,cat
-fiets,bicycle
-huis,house`}
-            </pre>
-          </div>
-
-          {importMessage && (
-            <p className="mt-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-              {importMessage}
-            </p>
-          )}
-
-          {error && (
-            <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </p>
-          )}
-        </section>
-
-        <section className="mb-6 grid grid-cols-4 gap-3">
-          <div className="rounded-xl bg-white p-3 text-center shadow">
-            <p className="text-2xl font-bold">{stats.total}</p>
-            <p className="text-xs text-gray-500">Cards</p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3 text-center shadow">
-            <p className="text-2xl font-bold">{stats.known}</p>
-            <p className="text-xs text-gray-500">Known</p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3 text-center shadow">
-            <p className="text-2xl font-bold">{stats.learning}</p>
-            <p className="text-xs text-gray-500">Learning</p>
-          </div>
-
-          <div className="rounded-xl bg-white p-3 text-center shadow">
-            <p className="text-2xl font-bold">{stats.difficult}</p>
-            <p className="text-xs text-gray-500">Difficult</p>
-          </div>
-        </section>
-
-        {cards.length > 0 && (
-          <div className="mb-4 grid grid-cols-3 gap-3">
-            <button
-              className="rounded-xl bg-white px-4 py-3 font-semibold text-gray-800 shadow"
-              onClick={reshuffleCards}
-            >
-              Shuffle
-            </button>
-
-            <button
-              className={`rounded-xl px-4 py-3 font-semibold shadow ${
-                showDifficultOnly
-                  ? "bg-orange-500 text-white"
-                  : "bg-white text-orange-600"
-              }`}
-              onClick={toggleDifficultMode}
-              disabled={stats.difficult === 0}
-            >
-              Difficult
-            </button>
-
-            <button
-              className="rounded-xl bg-white px-4 py-3 font-semibold text-red-600 shadow"
-              onClick={clearCards}
-            >
-              Clear
-            </button>
-          </div>
-        )}
 
         {showDifficultOnly && stats.difficult === 0 && (
           <section className="rounded-2xl bg-white p-6 text-center shadow">
@@ -392,12 +293,12 @@ huis,house`}
         )}
 
         {currentCard ? (
-          <section className="rounded-2xl bg-white p-6 text-center shadow">
-            <div className="mb-4">
+          <section className="rounded-2xl bg-white p-4 text-center shadow">
+            <div className="mb-3">
               <div className="mb-2 flex items-center justify-between text-sm text-gray-500">
                 <span>
-                  {showDifficultOnly ? "Difficult card" : "Card"}{" "}
-                  {currentIndex + 1} of {visibleCards.length}
+                  {showDifficultOnly ? "Difficult" : "Card"} {currentIndex + 1} /{" "}
+                  {visibleCards.length}
                 </span>
                 <span>{progressPercent}%</span>
               </div>
@@ -411,26 +312,24 @@ huis,house`}
             </div>
 
             <button
-              className="mb-6 w-full rounded-2xl border border-gray-200 p-8 text-center transition active:scale-[0.99]"
+              className="mb-4 flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl border border-gray-200 p-6 text-center transition active:scale-[0.99]"
               onClick={() => setShowAnswer((value) => !value)}
             >
-              <div className="mb-3 flex justify-center">
-                {currentCard.difficult && (
-                  <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
-                    Difficult
-                  </span>
-                )}
-              </div>
+              {currentCard.difficult && (
+                <span className="mb-4 rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                  Difficult
+                </span>
+              )}
 
-              <p className="text-sm uppercase tracking-wide text-gray-500">
+              <p className="text-xs uppercase tracking-wide text-gray-500">
                 Dutch
               </p>
 
               <p className="mt-3 text-4xl font-bold">{currentCard.dutch}</p>
 
               {showAnswer ? (
-                <div className="mt-8 border-t pt-6">
-                  <p className="text-sm uppercase tracking-wide text-gray-500">
+                <div className="mt-6 w-full border-t pt-5">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
                     English
                   </p>
 
@@ -439,9 +338,7 @@ huis,house`}
                   </p>
                 </div>
               ) : (
-                <p className="mt-6 text-sm text-gray-400">
-                  Tap card or press reveal to see answer
-                </p>
+                <p className="mt-6 text-sm text-gray-400">Tap to see answer</p>
               )}
             </button>
 
@@ -458,15 +355,8 @@ huis,house`}
                 : "Mark as difficult"}
             </button>
 
-            {!showAnswer ? (
-              <button
-                className="mb-3 w-full rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
-                onClick={() => setShowAnswer(true)}
-              >
-                Reveal answer
-              </button>
-            ) : (
-              <div className="mb-3 grid grid-cols-2 gap-3">
+            {showAnswer && (
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   className="rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700"
                   onClick={() => markCard(false)}
@@ -482,33 +372,139 @@ huis,house`}
                 </button>
               </div>
             )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                className="rounded-xl bg-gray-200 px-4 py-3 font-semibold text-gray-800"
-                onClick={goToPreviousCard}
-              >
-                Previous
-              </button>
-
-              <button
-                className="rounded-xl bg-gray-200 px-4 py-3 font-semibold text-gray-800"
-                onClick={goToNextCard}
-              >
-                Next
-              </button>
-            </div>
           </section>
         ) : (
           !showDifficultOnly && (
             <section className="rounded-2xl bg-white p-6 text-center shadow">
               <p className="text-gray-600">
-                Upload a file to create your first flashcards.
+                Upload a file below to create your first flashcards.
               </p>
             </section>
           )
         )}
+
+        <section className="mt-4 grid grid-cols-4 gap-2">
+          <div className="rounded-xl bg-white p-2 text-center shadow">
+            <p className="text-xl font-bold">{stats.total}</p>
+            <p className="text-xs text-gray-500">Cards</p>
+          </div>
+
+          <div className="rounded-xl bg-white p-2 text-center shadow">
+            <p className="text-xl font-bold">{stats.known}</p>
+            <p className="text-xs text-gray-500">Known</p>
+          </div>
+
+          <div className="rounded-xl bg-white p-2 text-center shadow">
+            <p className="text-xl font-bold">{stats.learning}</p>
+            <p className="text-xs text-gray-500">Learn</p>
+          </div>
+
+          <div className="rounded-xl bg-white p-2 text-center shadow">
+            <p className="text-xl font-bold">{stats.difficult}</p>
+            <p className="text-xs text-gray-500">Hard</p>
+          </div>
+        </section>
+
+        {cards.length > 0 && (
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <button
+              className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow"
+              onClick={reshuffleCards}
+            >
+              Shuffle
+            </button>
+
+            <button
+              className={`rounded-xl px-3 py-2 text-sm font-semibold shadow ${
+                showDifficultOnly
+                  ? "bg-orange-500 text-white"
+                  : "bg-white text-orange-600"
+              }`}
+              onClick={toggleDifficultMode}
+              disabled={stats.difficult === 0}
+            >
+              Difficult
+            </button>
+
+            <button
+              className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow"
+              onClick={clearCards}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow">
+          <button
+            className="flex w-full items-center justify-between font-semibold"
+            onClick={() => setShowUpload((value) => !value)}
+          >
+            <span>Upload / replace CSV</span>
+            <span>{showUpload ? "−" : "+"}</span>
+          </button>
+
+          {showUpload && (
+            <div className="mt-4">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">
+                  Upload CSV / Excel
+                </span>
+
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="block w-full rounded-lg border border-gray-300 p-2 text-sm"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+
+                    if (file) {
+                      handleFileUpload(file);
+                      event.target.value = "";
+                    }
+                  }}
+                />
+              </label>
+
+              <p className="mt-3 text-xs text-gray-500">
+                CSV format: Dutch,English
+              </p>
+            </div>
+          )}
+
+          {importMessage && (
+            <p className="mt-3 rounded-lg bg-green-50 p-2 text-sm text-green-700">
+              {importMessage}
+            </p>
+          )}
+
+          {error && (
+            <p className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+        </section>
       </div>
+
+      {currentCard && (
+        <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4 shadow-2xl">
+          <div className="mx-auto grid max-w-xl grid-cols-2 gap-3">
+            <button
+              className="rounded-xl bg-gray-200 px-4 py-4 font-semibold text-gray-800"
+              onClick={goToPreviousCard}
+            >
+              ← Previous
+            </button>
+
+            <button
+              className="rounded-xl bg-gray-900 px-4 py-4 font-semibold text-white"
+              onClick={goToNextCard}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
