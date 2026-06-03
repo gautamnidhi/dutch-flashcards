@@ -275,7 +275,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-4 pb-28 text-gray-900">
+    <main className="min-h-screen bg-gray-100 px-4 py-4 text-gray-900">
       <div className="mx-auto max-w-xl">
         <header className="mb-4">
           <h1 className="text-2xl font-bold">Dutch → English</h1>
@@ -311,36 +311,56 @@ export default function Home() {
               </div>
             </div>
 
-            <button
-              className="mb-4 flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl border border-gray-200 p-6 text-center transition active:scale-[0.99]"
-              onClick={() => setShowAnswer((value) => !value)}
-            >
-              {currentCard.difficult && (
-                <span className="mb-4 rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
-                  Difficult
-                </span>
-              )}
+            <div className="relative mb-4 min-h-[300px] rounded-2xl border border-gray-200">
+              <button
+                className="absolute left-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-2xl font-bold text-gray-700 shadow active:scale-95"
+                onClick={goToPreviousCard}
+                aria-label="Previous card"
+              >
+                ←
+              </button>
 
-              <p className="text-xs uppercase tracking-wide text-gray-500">
-                Dutch
-              </p>
+              <button
+                className="absolute right-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-gray-900 text-2xl font-bold text-white shadow active:scale-95"
+                onClick={goToNextCard}
+                aria-label="Next card"
+              >
+                →
+              </button>
 
-              <p className="mt-3 text-4xl font-bold">{currentCard.dutch}</p>
+              <button
+                className="flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl p-16 text-center transition active:scale-[0.99]"
+                onClick={() => setShowAnswer((value) => !value)}
+              >
+                {currentCard.difficult && (
+                  <span className="mb-4 rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                    Difficult
+                  </span>
+                )}
 
-              {showAnswer ? (
-                <div className="mt-6 w-full border-t pt-5">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    English
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  Dutch
+                </p>
+
+                <p className="mt-3 text-4xl font-bold">{currentCard.dutch}</p>
+
+                {showAnswer ? (
+                  <div className="mt-6 w-full border-t pt-5">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">
+                      English
+                    </p>
+
+                    <p className="mt-3 text-3xl font-semibold">
+                      {currentCard.english}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-6 text-sm text-gray-400">
+                    Tap to see answer
                   </p>
-
-                  <p className="mt-3 text-3xl font-semibold">
-                    {currentCard.english}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-6 text-sm text-gray-400">Tap to see answer</p>
-              )}
-            </button>
+                )}
+              </button>
+            </div>
 
             <button
               className={`mb-3 w-full rounded-xl px-4 py-3 font-semibold ${
@@ -485,26 +505,6 @@ export default function Home() {
           )}
         </section>
       </div>
-
-      {currentCard && (
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4 shadow-2xl">
-          <div className="mx-auto grid max-w-xl grid-cols-2 gap-3">
-            <button
-              className="rounded-xl bg-gray-200 px-4 py-4 font-semibold text-gray-800"
-              onClick={goToPreviousCard}
-            >
-              ← Previous
-            </button>
-
-            <button
-              className="rounded-xl bg-gray-900 px-4 py-4 font-semibold text-white"
-              onClick={goToNextCard}
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
