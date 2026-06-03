@@ -37,21 +37,43 @@ function speakDutch(text: string) {
     return;
   }
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "nl-NL";
-  utterance.rate = 0.65;
+  window.speechSynthesis.cancel();
 
   const voices = window.speechSynthesis.getVoices();
   const dutchVoice =
     voices.find((voice) => voice.lang === "nl-NL") ||
     voices.find((voice) => voice.lang.startsWith("nl"));
 
-  if (dutchVoice) {
-    utterance.voice = dutchVoice;
+  const words = text
+    .replace(/[.!?]/g, "")
+    .split(" ")
+    .filter(Boolean);
+
+  let index = 0;
+
+  function speakNextWord() {
+    if (index >= words.length) return;
+
+    const word = words[index];
+    const utterance = new SpeechSynthesisUtterance(word);
+
+    utterance.lang = "nl-NL";
+    utterance.rate = 0.45;
+    utterance.pitch = 1;
+
+    if (dutchVoice) {
+      utterance.voice = dutchVoice;
+    }
+
+    utterance.onend = () => {
+      index += 1;
+      setTimeout(speakNextWord, 300);
+    };
+
+    window.speechSynthesis.speak(utterance);
   }
 
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+  speakNextWord();
 }
 
 function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
