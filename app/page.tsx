@@ -398,31 +398,9 @@ export default function Home() {
         <header className="mb-4">
           <h1 className="text-2xl font-bold">Dutch → English</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Choose a list, tap the card to reveal the answer.
+            Tap the card to reveal the answer.
           </p>
         </header>
-
-        {decks.length > 0 && (
-          <section className="mb-4 rounded-2xl bg-white p-4 shadow">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium">
-                Current list
-              </span>
-
-              <select
-                className="w-full rounded-lg border border-gray-300 p-2 text-sm"
-                value={selectedDeckId}
-                onChange={(event) => handleDeckChange(event.target.value)}
-              >
-                {decks.map((deck) => (
-                  <option key={deck.id} value={deck.id}>
-                    {deck.name} ({deck.cards.length})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </section>
-        )}
 
         {showDifficultOnly && stats.difficult === 0 && (
           <section className="rounded-2xl bg-white p-6 text-center shadow">
@@ -608,6 +586,26 @@ export default function Home() {
 
           {showUpload && (
             <div className="mt-4 space-y-4">
+              {decks.length > 0 && (
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium">
+                    Current list
+                  </span>
+
+                  <select
+                    className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                    value={selectedDeckId}
+                    onChange={(event) => handleDeckChange(event.target.value)}
+                  >
+                    {decks.map((deck) => (
+                      <option key={deck.id} value={deck.id}>
+                        {deck.name} ({deck.cards.length})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
               <label className="block">
                 <span className="mb-2 block text-sm font-medium">
                   Upload CSV / Excel
