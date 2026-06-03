@@ -10,6 +10,9 @@ type Flashcard = {
   english: string;
   known: boolean;
   difficult: boolean;
+  type?: string;
+  topic?: string;
+  examSkill?: string;
 };
 
 type Deck = {
@@ -85,6 +88,9 @@ function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
       english: String(card.english || "").trim(),
       known: Boolean(card.known),
       difficult: Boolean(card.difficult),
+      type: String(card.type || "").trim(),
+      topic: String(card.topic || "").trim(),
+      examSkill: String(card.examSkill || "").trim(),
     }));
 }
 
@@ -276,12 +282,35 @@ export default function Home() {
           values[1] ||
           "";
 
+        const type =
+          normalizedRow["type"] ||
+          normalizedRow["part of speech"] ||
+          normalizedRow["partofspeech"] ||
+          normalizedRow["word type"] ||
+          normalizedRow["category"] ||
+          "";
+
+        const topic =
+          normalizedRow["topic"] ||
+          normalizedRow["theme"] ||
+          normalizedRow["subject"] ||
+          "";
+
+        const examSkill =
+          normalizedRow["examskill"] ||
+          normalizedRow["exam skill"] ||
+          normalizedRow["skill"] ||
+          "";
+
         return {
           id: createId(),
           dutch: dutch.trim(),
           english: english.trim(),
           known: false,
           difficult: false,
+          type: type.trim(),
+          topic: topic.trim(),
+          examSkill: examSkill.trim(),
         };
       })
       .filter((card) => card.dutch && card.english);
@@ -497,11 +526,25 @@ export default function Home() {
                 className="flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl p-16 text-center transition active:scale-[0.99]"
                 onClick={() => setShowAnswer((value) => !value)}
               >
-                {currentCard.difficult && (
-                  <span className="mb-4 rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
-                    Difficult
-                  </span>
-                )}
+                <div className="mb-4 flex flex-wrap justify-center gap-2">
+                  {currentCard.difficult && (
+                    <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                      Difficult
+                    </span>
+                  )}
+
+                  {currentCard.type && (
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                      {currentCard.type}
+                    </span>
+                  )}
+
+                  {currentCard.examSkill && (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {currentCard.examSkill}
+                    </span>
+                  )}
+                </div>
 
                 <p className="text-xs uppercase tracking-wide text-gray-500">
                   Dutch
@@ -539,6 +582,12 @@ export default function Home() {
                     <p className="mt-3 text-3xl font-semibold">
                       {currentCard.english}
                     </p>
+
+                    {currentCard.topic && (
+                      <p className="mt-3 text-sm text-gray-500">
+                        Topic: {currentCard.topic}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-6 text-sm text-gray-400">
@@ -747,7 +796,7 @@ export default function Home() {
               </div>
 
               <p className="text-xs text-gray-500">
-                CSV format: Dutch,English
+                CSV format: Dutch,English,Type,Topic,ExamSkill
               </p>
             </div>
           )}
