@@ -33,7 +33,8 @@ export default function Home() {
 
     if (savedCards) {
       try {
-        setCards(JSON.parse(savedCards));
+        setCards(shuffleCards(JSON.parse(savedCards)));
+        setCurrentIndex(0);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -168,7 +169,7 @@ export default function Home() {
       return;
     }
 
-    setCards((existingCards) => shuffleCards([...existingCards, ...newCards]));
+    setCards(shuffleCards(newCards));
     setCurrentIndex(0);
     setShowAnswer(false);
     setImportMessage(`Imported ${newCards.length} cards successfully.`);
