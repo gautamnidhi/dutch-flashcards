@@ -27,6 +27,8 @@ type AudioLesson = {
   title: string;
   done: boolean;
   createdAt: string;
+  fileName?: string;
+  fileSize?: number;
 };
 
 const STORAGE_KEY = "dutch-english-flashcard-decks";
@@ -47,7 +49,10 @@ function getLessonSortParts(title: string) {
 
   return {
     disc: numbers.length >= 2 ? numbers[numbers.length - 2] : 0,
-    lesson: numbers.length >= 1 ? numbers[numbers.length - 1] : Number.MAX_SAFE_INTEGER,
+    lesson:
+      numbers.length >= 1
+        ? numbers[numbers.length - 1]
+        : Number.MAX_SAFE_INTEGER,
   };
 }
 
@@ -150,6 +155,8 @@ function normalizeSavedLessons(lessons: Partial<AudioLesson>[]): AudioLesson[] {
       title: String(lesson.title || "Audio lesson").trim(),
       done: Boolean(lesson.done),
       createdAt: lesson.createdAt || new Date().toISOString(),
+      fileName: String(lesson.fileName || "").trim(),
+      fileSize: Number(lesson.fileSize || 0),
     }));
 }
 
@@ -249,12 +256,17 @@ export default function Home() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+
   const [audioLessons, setAudioLessons] = useState<AudioLesson[]>([]);
   const [audioMessage, setAudioMessage] = useState("");
   const [audioError, setAudioError] = useState("");
   const [currentAudioLessonId, setCurrentAudioLessonId] = useState("");
   const [currentAudioUrl, setCurrentAudioUrl] = useState("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [audioTouchStartX, setAudioTouchStartX] = useState<number | null>(null);
+  const [audioTouchEndX, setAudioTouchEndX] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -346,6 +358,13 @@ export default function Home() {
     listeningStats.total > 0
       ? Math.round((listeningStats.done / listeningStats.total) * 100)
       : 0;
+
+  function scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
 
   function updateSelectedDeckCards(
     updater: (cards: Flashcard[]) => Flashcard[]
@@ -572,6 +591,39 @@ export default function Home() {
     goToNextCard();
   }
 
+  function markCurrentCardDifficultAndNext() {
+    if (!currentCard) return;
+
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) =>
+        card.id === currentCard.id ? { ...card, difficult: true } : card
+      )
+    );
+
+    goToNextCard();
+  }
+
+  function handleCardSwipe() {
+    if (touchStartX === null || touchEndX === null) return;
+    if (!currentCard) return;
+
+    const swipeDistance = touchEndX - touchStartX;
+    const minimumSwipeDistance = 80;
+
+    setTouchStartX(null);
+    setTouchEndX(null);
+
+    if (Math.abs(swipeDistance) < minimumSwipeDistance) {
+      return;
+    }
+
+    if (swipeDistance > 0) {
+      markCard(true);
+    } else {
+      markCurrentCardDifficultAndNext();
+    }
+  }
+
   function toggleDifficult() {
     if (!currentCard) return;
 
@@ -653,6 +705,17 @@ export default function Home() {
     try {
       const newLessons: AudioLesson[] = [];
 
+      const existingFileKeys = new Set(
+        audioLessons.map(
+          (lesson) =>
+            `${String(lesson.fileName || lesson.title).toLowerCase()}-${
+              lesson.fileSize || 0
+            }`
+        )
+      );
+
+      let skippedDuplicates = 0;
+
       for (const file of Array.from(files)) {
         const fileName = file.name.toLowerCase();
 
@@ -668,6 +731,15 @@ export default function Home() {
           continue;
         }
 
+        const fileKey = `${file.name.toLowerCase()}-${file.size}`;
+
+        if (existingFileKeys.has(fileKey)) {
+          skippedDuplicates += 1;
+          continue;
+        }
+
+        existingFileKeys.add(fileKey);
+
         const id = createId();
         const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
 
@@ -678,7 +750,14 @@ export default function Home() {
           title: cleanTitle,
           done: false,
           createdAt: new Date().toISOString(),
+          fileName: file.name,
+          fileSize: file.size,
         });
+      }
+
+      if (newLessons.length === 0 && skippedDuplicates > 0) {
+        setAudioError(`Skipped ${skippedDuplicates} duplicate file(s).`);
+        return;
       }
 
       if (newLessons.length === 0) {
@@ -689,7 +768,12 @@ export default function Home() {
       setAudioLessons((existingLessons) =>
         sortAudioLessons([...existingLessons, ...newLessons])
       );
-      setAudioMessage(`Uploaded ${newLessons.length} audio lesson(s).`);
+
+      setAudioMessage(
+        skippedDuplicates > 0
+          ? `Uploaded ${newLessons.length} audio lesson(s). Skipped ${skippedDuplicates} duplicate file(s).`
+          : `Uploaded ${newLessons.length} audio lesson(s).`
+      );
     } catch (error) {
       console.error(error);
       setAudioError("Could not save audio. Your browser storage may be full.");
@@ -787,6 +871,26 @@ export default function Home() {
     }
   }
 
+  function handleAudioLessonSwipe(lesson: AudioLesson) {
+    if (audioTouchStartX === null || audioTouchEndX === null) return;
+
+    const swipeDistance = audioTouchEndX - audioTouchStartX;
+    const minimumSwipeDistance = 80;
+
+    setAudioTouchStartX(null);
+    setAudioTouchEndX(null);
+
+    if (Math.abs(swipeDistance) < minimumSwipeDistance) {
+      return;
+    }
+
+    if (swipeDistance > 0) {
+      toggleLessonDone(lesson.id);
+    } else {
+      deleteAudioLesson(lesson);
+    }
+  }
+
   function clearAllAudioLessons() {
     if (audioLessons.length === 0) return;
 
@@ -879,28 +983,24 @@ export default function Home() {
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
+
+                  <p className="mt-2 text-xs text-gray-400">
+                    Swipe left = difficult · Swipe right = known
+                  </p>
                 </div>
 
-                <div className="relative mb-4 min-h-[300px] rounded-2xl border border-gray-200">
+                <div className="relative mb-4 min-h-[380px] rounded-2xl border border-gray-200">
                   <button
-                    className="absolute left-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-2xl font-bold text-gray-700 shadow active:scale-95"
-                    onClick={goToPreviousCard}
-                    aria-label="Previous card"
-                  >
-                    ←
-                  </button>
-
-                  <button
-                    className="absolute right-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-gray-900 text-2xl font-bold text-white shadow active:scale-95"
-                    onClick={goToNextCard}
-                    aria-label="Next card"
-                  >
-                    →
-                  </button>
-
-                  <button
-                    className="flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl p-16 text-center transition active:scale-[0.99]"
+                    className="flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl px-8 py-10 pb-24 text-center transition active:scale-[0.99]"
                     onClick={() => setShowAnswer((value) => !value)}
+                    onTouchStart={(event) => {
+                      setTouchEndX(null);
+                      setTouchStartX(event.targetTouches[0].clientX);
+                    }}
+                    onTouchMove={(event) => {
+                      setTouchEndX(event.targetTouches[0].clientX);
+                    }}
+                    onTouchEnd={handleCardSwipe}
                   >
                     <div className="mb-4 flex flex-wrap justify-center gap-2">
                       {currentCard.difficult && (
@@ -926,13 +1026,15 @@ export default function Home() {
                       Dutch
                     </p>
 
-                    <div className="mt-3 flex items-center justify-center gap-3">
-                      <p className="text-4xl font-bold">{currentCard.dutch}</p>
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+                      <p className="break-words text-4xl font-bold">
+                        {currentCard.dutch}
+                      </p>
 
                       <span
                         role="button"
                         tabIndex={0}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-xl text-blue-700 shadow active:scale-95"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl text-blue-700 shadow active:scale-95"
                         onClick={(event) => {
                           event.stopPropagation();
                           speakDutch(currentCard.dutch);
@@ -971,6 +1073,24 @@ export default function Home() {
                       </p>
                     )}
                   </button>
+
+                  <div className="absolute bottom-4 left-4 right-4 grid grid-cols-2 gap-3">
+                    <button
+                      className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700 shadow active:scale-95"
+                      onClick={goToPreviousCard}
+                      aria-label="Previous card"
+                    >
+                      ← Previous
+                    </button>
+
+                    <button
+                      className="rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white shadow active:scale-95"
+                      onClick={goToNextCard}
+                      aria-label="Next card"
+                    >
+                      Next →
+                    </button>
+                  </div>
                 </div>
 
                 <button
@@ -1257,6 +1377,10 @@ export default function Home() {
                 device/browser.
               </p>
 
+              <p className="mt-1 text-xs text-gray-400">
+                Swipe right = mark done · Swipe left = delete
+              </p>
+
               {audioMessage && (
                 <p className="mt-3 rounded-lg bg-green-50 p-2 text-sm text-green-700">
                   {audioMessage}
@@ -1297,6 +1421,14 @@ export default function Home() {
                   <div
                     key={lesson.id}
                     className="rounded-2xl bg-white p-4 shadow"
+                    onTouchStart={(event) => {
+                      setAudioTouchEndX(null);
+                      setAudioTouchStartX(event.targetTouches[0].clientX);
+                    }}
+                    onTouchMove={(event) => {
+                      setAudioTouchEndX(event.targetTouches[0].clientX);
+                    }}
+                    onTouchEnd={() => handleAudioLessonSwipe(lesson)}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1375,6 +1507,14 @@ export default function Home() {
           </>
         )}
       </div>
+
+      <button
+        className="fixed bottom-4 right-4 z-50 rounded-full bg-gray-900 px-4 py-3 text-sm font-bold text-white shadow-lg active:scale-95"
+        onClick={scrollToTop}
+        aria-label="Go to top"
+      >
+        ↑ Top
+      </button>
     </main>
   );
 }
