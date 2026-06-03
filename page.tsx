@@ -29,31 +29,6 @@ function shuffleCards(cards: Flashcard[]) {
   return [...cards].sort(() => Math.random() - 0.5);
 }
 
-function speakDutch(text: string) {
-  if (typeof window === "undefined") return;
-
-  if (!("speechSynthesis" in window)) {
-    alert("Speech is not supported on this device.");
-    return;
-  }
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "nl-NL";
-  utterance.rate = 0.85;
-
-  const voices = window.speechSynthesis.getVoices();
-  const dutchVoice =
-    voices.find((voice) => voice.lang === "nl-NL") ||
-    voices.find((voice) => voice.lang.startsWith("nl"));
-
-  if (dutchVoice) {
-    utterance.voice = dutchVoice;
-  }
-
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-}
-
 function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
   return cards
     .filter((card) => card.dutch && card.english)
@@ -485,28 +460,7 @@ export default function Home() {
                   Dutch
                 </p>
 
-                <div className="mt-3 flex items-center justify-center gap-3">
-                  <p className="text-4xl font-bold">{currentCard.dutch}</p>
-
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-xl text-blue-700 shadow active:scale-95"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      speakDutch(currentCard.dutch);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.stopPropagation();
-                        speakDutch(currentCard.dutch);
-                      }
-                    }}
-                    aria-label="Hear Dutch pronunciation"
-                  >
-                    🔊
-                  </span>
-                </div>
+                <p className="mt-3 text-4xl font-bold">{currentCard.dutch}</p>
 
                 {showAnswer ? (
                   <div className="mt-6 w-full border-t pt-5">
