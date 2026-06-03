@@ -627,7 +627,17 @@ export default function Home() {
       const newLessons: AudioLesson[] = [];
 
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith("audio/")) {
+        const fileName = file.name.toLowerCase();
+
+        const isAudioFile =
+          file.type.startsWith("audio/") ||
+          fileName.endsWith(".mp3") ||
+          fileName.endsWith(".m4a") ||
+          fileName.endsWith(".aac") ||
+          fileName.endsWith(".wav") ||
+          fileName.endsWith(".ogg");
+
+        if (!isAudioFile) {
           continue;
         }
 
@@ -645,7 +655,7 @@ export default function Home() {
       }
 
       if (newLessons.length === 0) {
-        setAudioError("Please upload MP3 or audio files.");
+        setAudioError("Please upload MP3, M4A, AAC, WAV, or OGG audio files.");
         return;
       }
 
@@ -1201,7 +1211,7 @@ export default function Home() {
 
                 <input
                   type="file"
-                  accept="audio/*"
+                  accept=".mp3,.MP3,.m4a,.M4A,.aac,.AAC,.wav,.WAV,.ogg,.OGG,audio/mpeg,audio/mp3,audio/*"
                   multiple
                   className="block w-full rounded-lg border border-gray-300 p-2 text-sm"
                   onChange={(event) => {
