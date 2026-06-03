@@ -17,6 +17,10 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function shuffleCards(cards: Flashcard[]) {
+  return [...cards].sort(() => Math.random() - 0.5);
+}
+
 export default function Home() {
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -164,7 +168,7 @@ export default function Home() {
       return;
     }
 
-    setCards((existingCards) => [...existingCards, ...newCards]);
+    setCards((existingCards) => shuffleCards([...existingCards, ...newCards]));
     setCurrentIndex(0);
     setShowAnswer(false);
     setImportMessage(`Imported ${newCards.length} cards successfully.`);
@@ -191,6 +195,13 @@ export default function Home() {
     goToNextCard();
   }
 
+  function reshuffleCards() {
+    setCards((existingCards) => shuffleCards(existingCards));
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setImportMessage("Cards shuffled.");
+  }
+
   function clearCards() {
     setCards([]);
     setCurrentIndex(0);
@@ -205,7 +216,8 @@ export default function Home() {
         <header className="mb-6">
           <h1 className="text-3xl font-bold">Dutch → English Flashcards</h1>
           <p className="mt-2 text-gray-600">
-            Upload a CSV or Excel file, then study your words as flashcards.
+            Upload a CSV or Excel file, then study your words as random
+            flashcards.
           </p>
         </header>
 
@@ -271,6 +283,15 @@ brood,bread`}
             <p className="text-sm text-gray-500">Learning</p>
           </div>
         </section>
+
+        {cards.length > 1 && (
+          <button
+            className="mb-4 w-full rounded-xl bg-white px-4 py-3 font-semibold text-gray-800 shadow"
+            onClick={reshuffleCards}
+          >
+            Shuffle cards
+          </button>
+        )}
 
         {currentCard ? (
           <section className="rounded-2xl bg-white p-6 text-center shadow">
