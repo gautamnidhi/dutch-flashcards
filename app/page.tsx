@@ -12,7 +12,14 @@ type Flashcard = {
   difficult: boolean;
 };
 
-const STORAGE_KEY = "dutch-english-flashcards";
+type Deck = {
+  id: string;
+  name: string;
+  cards: Flashcard[];
+  createdAt: string;
+};
+
+const STORAGE_KEY = "dutch-english-flashcard-decks";
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -34,23 +41,42 @@ function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
     }));
 }
 
+function normalizeSavedDecks(decks: Partial<Deck>[]): Deck[] {
+  return decks
+    .filter((deck) => deck.name && Array.isArray(deck.cards))
+    .map((deck) => ({
+      id: deck.id || createId(),
+      name: String(deck.name || "Untitled list").trim(),
+      cards: normalizeSavedCards(deck.cards || []),
+      createdAt: deck.createdAt || new Date().toISOString(),
+    }))
+    .filter((deck) => deck.cards.length > 0);
+}
+
 export default function Home() {
-  const [cards, setCards] = useState<Flashcard[]>([]);
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState("");
+  const [deckName, setDeckName] = useState("");
+  const [pendingCards, setPendingCards] = useState<Flashcard[]>([]);
+  const [pendingFileName, setPendingFileName] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showDifficultOnly, setShowDifficultOnly] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState("");
-  const [importMessage, setImportMessage] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const savedCards = localStorage.getItem(STORAGE_KEY);
+    const savedDecks = localStorage.getItem(STORAGE_KEY);
 
-    if (savedCards) {
+    if (savedDecks) {
       try {
-        const parsedCards = JSON.parse(savedCards);
-        setCards(shuffleCards(normalizeSavedCards(parsedCards)));
-        setCurrentIndex(0);
+        const parsedDecks = normalizeSavedDecks(JSON.parse(savedDecks));
+        setDecks(parsedDecks);
+
+        if (parsedDecks.length > 0) {
+          setSelectedDeckId(parsedDecks[0].id);
+        }
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -58,42 +84,63 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-  }, [cards]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
+  }, [decks]);
+
+  const selectedDeck = useMemo(() => {
+    return decks.find((deck) => deck.id === selectedDeckId);
+  }, [decks, selectedDeckId]);
+
+  const selectedCards = selectedDeck?.cards || [];
 
   const visibleCards = useMemo(() => {
     return showDifficultOnly
-      ? cards.filter((card) => card.difficult)
-      : cards;
-  }, [cards, showDifficultOnly]);
+      ? selectedCards.filter((card) => card.difficult)
+      : selectedCards;
+  }, [selectedCards, showDifficultOnly]);
 
   const currentCard = visibleCards[currentIndex];
 
   const stats = useMemo(() => {
-    const known = cards.filter((card) => card.known).length;
-    const difficult = cards.filter((card) => card.difficult).length;
+    const known = selectedCards.filter((card) => card.known).length;
+    const difficult = selectedCards.filter((card) => card.difficult).length;
 
     return {
-      total: cards.length,
+      total: selectedCards.length,
       known,
-      learning: cards.length - known,
+      learning: selectedCards.length - known,
       difficult,
     };
-  }, [cards]);
+  }, [selectedCards]);
 
   const progressPercent =
     visibleCards.length > 0
       ? Math.round(((currentIndex + 1) / visibleCards.length) * 100)
       : 0;
 
+  function updateSelectedDeckCards(
+    updater: (cards: Flashcard[]) => Flashcard[]
+  ) {
+    if (!selectedDeck) return;
+
+    setDecks((existingDecks) =>
+      existingDecks.map((deck) =>
+        deck.id === selectedDeck.id
+          ? { ...deck, cards: updater(deck.cards) }
+          : deck
+      )
+    );
+  }
+
   async function handleFileUpload(file: File) {
     setError("");
-    setImportMessage("");
-    setShowDifficultOnly(false);
+    setMessage("");
 
     const fileName = file.name.toLowerCase();
 
     try {
+      let parsedCards: Flashcard[] = [];
+
       if (fileName.endsWith(".csv")) {
         const text = await file.text();
 
@@ -106,13 +153,8 @@ export default function Home() {
             header.replace(/^\uFEFF/, "").trim().toLowerCase(),
         });
 
-        const parsedCards = rowsToCards(results.data);
-        addCards(parsedCards);
-
-        return;
-      }
-
-      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        parsedCards = rowsToCards(results.data);
+      } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer);
         const sheetName = workbook.SheetNames[0];
@@ -122,13 +164,28 @@ export default function Home() {
           worksheet
         );
 
-        const parsedCards = rowsToCards(rows);
-        addCards(parsedCards);
-
+        parsedCards = rowsToCards(rows);
+      } else {
+        setError("Please upload a CSV or Excel file.");
         return;
       }
 
-      setError("Please upload a CSV or Excel file.");
+      if (parsedCards.length === 0) {
+        setError(
+          "No valid cards found. Use columns named Dutch and English, or Nederlands and Engels."
+        );
+        return;
+      }
+
+      setPendingCards(parsedCards);
+      setPendingFileName(file.name);
+
+      if (!deckName.trim()) {
+        const cleanName = file.name.replace(/\.(csv|xlsx|xls)$/i, "");
+        setDeckName(cleanName);
+      }
+
+      setMessage(`Ready to import ${parsedCards.length} cards.`);
     } catch (error) {
       console.error(error);
       setError("Something went wrong while reading the file.");
@@ -183,19 +240,54 @@ export default function Home() {
       .filter((card) => card.dutch && card.english);
   }
 
-  function addCards(newCards: Flashcard[]) {
-    if (newCards.length === 0) {
-      setError(
-        "No valid cards found. Use columns named Dutch and English, or Nederlands and Engels."
-      );
+  function createNewDeckFromPendingCards() {
+    if (pendingCards.length === 0) {
+      setError("Upload a CSV or Excel file first.");
       return;
     }
 
-    setCards(shuffleCards(newCards));
+    const newDeck: Deck = {
+      id: createId(),
+      name: deckName.trim() || pendingFileName || "New list",
+      cards: shuffleCards(pendingCards),
+      createdAt: new Date().toISOString(),
+    };
+
+    setDecks((existingDecks) => [newDeck, ...existingDecks]);
+    setSelectedDeckId(newDeck.id);
     setCurrentIndex(0);
     setShowAnswer(false);
+    setShowDifficultOnly(false);
     setShowUpload(false);
-    setImportMessage(`Imported ${newCards.length} cards successfully.`);
+    setPendingCards([]);
+    setPendingFileName("");
+    setDeckName("");
+    setMessage(`Created "${newDeck.name}" with ${newDeck.cards.length} cards.`);
+  }
+
+  function addPendingCardsToCurrentDeck() {
+    if (!selectedDeck) {
+      setError("Create a list first, or use Create new list.");
+      return;
+    }
+
+    if (pendingCards.length === 0) {
+      setError("Upload a CSV or Excel file first.");
+      return;
+    }
+
+    const addedCount = pendingCards.length;
+
+    updateSelectedDeckCards((cards) => shuffleCards([...cards, ...pendingCards]));
+
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setShowDifficultOnly(false);
+    setShowUpload(false);
+    setPendingCards([]);
+    setPendingFileName("");
+    setDeckName("");
+    setMessage(`Added ${addedCount} cards to "${selectedDeck.name}".`);
   }
 
   function goToNextCard() {
@@ -219,8 +311,8 @@ export default function Home() {
   function markCard(known: boolean) {
     if (!currentCard) return;
 
-    setCards((existingCards) =>
-      existingCards.map((card) =>
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) =>
         card.id === currentCard.id ? { ...card, known } : card
       )
     );
@@ -231,15 +323,15 @@ export default function Home() {
   function toggleDifficult() {
     if (!currentCard) return;
 
-    setCards((existingCards) =>
-      existingCards.map((card) =>
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) =>
         card.id === currentCard.id
           ? { ...card, difficult: !card.difficult }
           : card
       )
     );
 
-    setImportMessage(
+    setMessage(
       currentCard.difficult
         ? "Removed from difficult cards."
         : "Added to difficult cards."
@@ -255,23 +347,49 @@ export default function Home() {
     setShowDifficultOnly((value) => !value);
     setCurrentIndex(0);
     setShowAnswer(false);
-    setImportMessage("");
+    setMessage("");
   }
 
-  function reshuffleCards() {
-    setCards((existingCards) => shuffleCards(existingCards));
+  function reshuffleCurrentDeck() {
+    updateSelectedDeckCards((cards) => shuffleCards(cards));
     setCurrentIndex(0);
     setShowAnswer(false);
-    setImportMessage("Cards shuffled.");
+    setMessage("Current list shuffled.");
   }
 
-  function clearCards() {
-    setCards([]);
+  function deleteCurrentDeck() {
+    if (!selectedDeck) return;
+
+    const confirmed = window.confirm(
+      `Delete "${selectedDeck.name}"? This cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    const remainingDecks = decks.filter((deck) => deck.id !== selectedDeck.id);
+
+    setDecks(remainingDecks);
+    setSelectedDeckId(remainingDecks[0]?.id || "");
     setCurrentIndex(0);
     setShowAnswer(false);
     setShowDifficultOnly(false);
-    setImportMessage("");
-    localStorage.removeItem(STORAGE_KEY);
+    setMessage(`Deleted "${selectedDeck.name}".`);
+  }
+
+  function clearPendingImport() {
+    setPendingCards([]);
+    setPendingFileName("");
+    setDeckName("");
+    setError("");
+    setMessage("");
+  }
+
+  function handleDeckChange(deckId: string) {
+    setSelectedDeckId(deckId);
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setShowDifficultOnly(false);
+    setMessage("");
   }
 
   return (
@@ -280,14 +398,36 @@ export default function Home() {
         <header className="mb-4">
           <h1 className="text-2xl font-bold">Dutch → English</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Tap the card to reveal the answer.
+            Choose a list, tap the card to reveal the answer.
           </p>
         </header>
+
+        {decks.length > 0 && (
+          <section className="mb-4 rounded-2xl bg-white p-4 shadow">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium">
+                Current list
+              </span>
+
+              <select
+                className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                value={selectedDeckId}
+                onChange={(event) => handleDeckChange(event.target.value)}
+              >
+                {decks.map((deck) => (
+                  <option key={deck.id} value={deck.id}>
+                    {deck.name} ({deck.cards.length})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+        )}
 
         {showDifficultOnly && stats.difficult === 0 && (
           <section className="rounded-2xl bg-white p-6 text-center shadow">
             <p className="text-gray-600">
-              No difficult cards yet. Mark cards as difficult while studying.
+              No difficult cards in this list yet.
             </p>
           </section>
         )}
@@ -397,62 +537,64 @@ export default function Home() {
           !showDifficultOnly && (
             <section className="rounded-2xl bg-white p-6 text-center shadow">
               <p className="text-gray-600">
-                Upload a file below to create your first flashcards.
+                Upload a file below to create your first list.
               </p>
             </section>
           )
         )}
 
-        <section className="mt-4 grid grid-cols-4 gap-2">
-          <div className="rounded-xl bg-white p-2 text-center shadow">
-            <p className="text-xl font-bold">{stats.total}</p>
-            <p className="text-xs text-gray-500">Cards</p>
-          </div>
+        {selectedDeck && (
+          <>
+            <section className="mt-4 grid grid-cols-4 gap-2">
+              <div className="rounded-xl bg-white p-2 text-center shadow">
+                <p className="text-xl font-bold">{stats.total}</p>
+                <p className="text-xs text-gray-500">Cards</p>
+              </div>
 
-          <div className="rounded-xl bg-white p-2 text-center shadow">
-            <p className="text-xl font-bold">{stats.known}</p>
-            <p className="text-xs text-gray-500">Known</p>
-          </div>
+              <div className="rounded-xl bg-white p-2 text-center shadow">
+                <p className="text-xl font-bold">{stats.known}</p>
+                <p className="text-xs text-gray-500">Known</p>
+              </div>
 
-          <div className="rounded-xl bg-white p-2 text-center shadow">
-            <p className="text-xl font-bold">{stats.learning}</p>
-            <p className="text-xs text-gray-500">Learn</p>
-          </div>
+              <div className="rounded-xl bg-white p-2 text-center shadow">
+                <p className="text-xl font-bold">{stats.learning}</p>
+                <p className="text-xs text-gray-500">Learn</p>
+              </div>
 
-          <div className="rounded-xl bg-white p-2 text-center shadow">
-            <p className="text-xl font-bold">{stats.difficult}</p>
-            <p className="text-xs text-gray-500">Hard</p>
-          </div>
-        </section>
+              <div className="rounded-xl bg-white p-2 text-center shadow">
+                <p className="text-xl font-bold">{stats.difficult}</p>
+                <p className="text-xs text-gray-500">Hard</p>
+              </div>
+            </section>
 
-        {cards.length > 0 && (
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <button
-              className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow"
-              onClick={reshuffleCards}
-            >
-              Shuffle
-            </button>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <button
+                className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow"
+                onClick={reshuffleCurrentDeck}
+              >
+                Shuffle
+              </button>
 
-            <button
-              className={`rounded-xl px-3 py-2 text-sm font-semibold shadow ${
-                showDifficultOnly
-                  ? "bg-orange-500 text-white"
-                  : "bg-white text-orange-600"
-              }`}
-              onClick={toggleDifficultMode}
-              disabled={stats.difficult === 0}
-            >
-              Difficult
-            </button>
+              <button
+                className={`rounded-xl px-3 py-2 text-sm font-semibold shadow ${
+                  showDifficultOnly
+                    ? "bg-orange-500 text-white"
+                    : "bg-white text-orange-600"
+                }`}
+                onClick={toggleDifficultMode}
+                disabled={stats.difficult === 0}
+              >
+                Difficult
+              </button>
 
-            <button
-              className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow"
-              onClick={clearCards}
-            >
-              Clear
-            </button>
-          </div>
+              <button
+                className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow"
+                onClick={deleteCurrentDeck}
+              >
+                Delete
+              </button>
+            </div>
+          </>
         )}
 
         <section className="mt-4 rounded-2xl bg-white p-4 shadow">
@@ -460,12 +602,12 @@ export default function Home() {
             className="flex w-full items-center justify-between font-semibold"
             onClick={() => setShowUpload((value) => !value)}
           >
-            <span>Upload / replace CSV</span>
+            <span>Upload / manage lists</span>
             <span>{showUpload ? "−" : "+"}</span>
           </button>
 
           {showUpload && (
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
               <label className="block">
                 <span className="mb-2 block text-sm font-medium">
                   Upload CSV / Excel
@@ -486,15 +628,67 @@ export default function Home() {
                 />
               </label>
 
-              <p className="mt-3 text-xs text-gray-500">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">
+                  New list name
+                </span>
+
+                <input
+                  type="text"
+                  className="block w-full rounded-lg border border-gray-300 p-2 text-sm"
+                  placeholder="Example: Inburgering A2"
+                  value={deckName}
+                  onChange={(event) => setDeckName(event.target.value)}
+                />
+              </label>
+
+              {pendingCards.length > 0 && (
+                <div className="rounded-xl bg-gray-50 p-3 text-sm">
+                  <p className="font-medium">
+                    File ready: {pendingFileName || "uploaded file"}
+                  </p>
+                  <p className="text-gray-600">
+                    {pendingCards.length} cards found.
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  className="rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white disabled:opacity-50"
+                  onClick={createNewDeckFromPendingCards}
+                  disabled={pendingCards.length === 0}
+                >
+                  Create new list
+                </button>
+
+                <button
+                  className="rounded-xl bg-blue-100 px-4 py-3 font-semibold text-blue-700 disabled:opacity-50"
+                  onClick={addPendingCardsToCurrentDeck}
+                  disabled={pendingCards.length === 0 || !selectedDeck}
+                >
+                  Add to current list
+                </button>
+
+                {pendingCards.length > 0 && (
+                  <button
+                    className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
+                    onClick={clearPendingImport}
+                  >
+                    Cancel import
+                  </button>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-500">
                 CSV format: Dutch,English
               </p>
             </div>
           )}
 
-          {importMessage && (
+          {message && (
             <p className="mt-3 rounded-lg bg-green-50 p-2 text-sm text-green-700">
-              {importMessage}
+              {message}
             </p>
           )}
 
