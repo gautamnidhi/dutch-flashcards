@@ -9,6 +9,7 @@ type Flashcard = {
   dutch: string;
   english: string;
   known: boolean;
+  difficult: boolean;
 };
 
 const STORAGE_KEY = "dutch-english-flashcards";
@@ -21,10 +22,23 @@ function shuffleCards(cards: Flashcard[]) {
   return [...cards].sort(() => Math.random() - 0.5);
 }
 
+function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
+  return cards
+    .filter((card) => card.dutch && card.english)
+    .map((card) => ({
+      id: card.id || createId(),
+      dutch: String(card.dutch || "").trim(),
+      english: String(card.english || "").trim(),
+      known: Boolean(card.known),
+      difficult: Boolean(card.difficult),
+    }));
+}
+
 export default function Home() {
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showDifficultOnly, setShowDifficultOnly] = useState(false);
   const [error, setError] = useState("");
   const [importMessage, setImportMessage] = useState("");
 
@@ -33,7 +47,8 @@ export default function Home() {
 
     if (savedCards) {
       try {
-        setCards(shuffleCards(JSON.parse(savedCards)));
+        const parsedCards = JSON.parse(savedCards);
+        setCards(shuffleCards(normalizeSavedCards(parsedCards)));
         setCurrentIndex(0);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
@@ -45,21 +60,35 @@ export default function Home() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
   }, [cards]);
 
-  const currentCard = cards[currentIndex];
+  const visibleCards = useMemo(() => {
+    return showDifficultOnly
+      ? cards.filter((card) => card.difficult)
+      : cards;
+  }, [cards, showDifficultOnly]);
+
+  const currentCard = visibleCards[currentIndex];
 
   const stats = useMemo(() => {
     const known = cards.filter((card) => card.known).length;
+    const difficult = cards.filter((card) => card.difficult).length;
 
     return {
       total: cards.length,
       known,
       learning: cards.length - known,
+      difficult,
     };
   }, [cards]);
+
+  const progressPercent =
+    visibleCards.length > 0
+      ? Math.round(((currentIndex + 1) / visibleCards.length) * 100)
+      : 0;
 
   async function handleFileUpload(file: File) {
     setError("");
     setImportMessage("");
+    setShowDifficultOnly(false);
 
     const fileName = file.name.toLowerCase();
 
@@ -80,9 +109,6 @@ export default function Home() {
           console.error("CSV parse errors:", results.errors);
         }
 
-        console.log("Detected CSV fields:", results.meta.fields);
-        console.log("First CSV row:", results.data[0]);
-
         const parsedCards = rowsToCards(results.data);
         addCards(parsedCards);
 
@@ -98,8 +124,6 @@ export default function Home() {
         const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
           worksheet
         );
-
-        console.log("First Excel row:", rows[0]);
 
         const parsedCards = rowsToCards(rows);
         addCards(parsedCards);
@@ -156,6 +180,7 @@ export default function Home() {
           dutch: dutch.trim(),
           english: english.trim(),
           known: false,
+          difficult: false,
         };
       })
       .filter((card) => card.dutch && card.english);
@@ -179,8 +204,17 @@ export default function Home() {
     setShowAnswer(false);
 
     setCurrentIndex((index) => {
-      if (cards.length === 0) return 0;
-      return (index + 1) % cards.length;
+      if (visibleCards.length === 0) return 0;
+      return (index + 1) % visibleCards.length;
+    });
+  }
+
+  function goToPreviousCard() {
+    setShowAnswer(false);
+
+    setCurrentIndex((index) => {
+      if (visibleCards.length === 0) return 0;
+      return index === 0 ? visibleCards.length - 1 : index - 1;
     });
   }
 
@@ -196,6 +230,36 @@ export default function Home() {
     goToNextCard();
   }
 
+  function toggleDifficult() {
+    if (!currentCard) return;
+
+    setCards((existingCards) =>
+      existingCards.map((card) =>
+        card.id === currentCard.id
+          ? { ...card, difficult: !card.difficult }
+          : card
+      )
+    );
+
+    setImportMessage(
+      currentCard.difficult
+        ? "Removed from difficult cards."
+        : "Added to difficult cards."
+    );
+
+    if (showDifficultOnly) {
+      setCurrentIndex(0);
+      setShowAnswer(false);
+    }
+  }
+
+  function toggleDifficultMode() {
+    setShowDifficultOnly((value) => !value);
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setImportMessage("");
+  }
+
   function reshuffleCards() {
     setCards((existingCards) => shuffleCards(existingCards));
     setCurrentIndex(0);
@@ -207,6 +271,7 @@ export default function Home() {
     setCards([]);
     setCurrentIndex(0);
     setShowAnswer(false);
+    setShowDifficultOnly(false);
     setImportMessage("");
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -217,8 +282,8 @@ export default function Home() {
         <header className="mb-6">
           <h1 className="text-3xl font-bold">Dutch → English Flashcards</h1>
           <p className="mt-2 text-gray-600">
-            Upload a CSV or Excel file, then study your words as random
-            flashcards.
+            Upload a CSV or Excel file, mark difficult cards, and study them
+            later.
           </p>
         </header>
 
@@ -249,9 +314,7 @@ export default function Home() {
 hond,dog
 kat,cat
 fiets,bicycle
-huis,house
-water,water
-brood,bread`}
+huis,house`}
             </pre>
           </div>
 
@@ -268,46 +331,104 @@ brood,bread`}
           )}
         </section>
 
-        <section className="mb-6 grid grid-cols-3 gap-3">
+        <section className="mb-6 grid grid-cols-4 gap-3">
           <div className="rounded-xl bg-white p-3 text-center shadow">
             <p className="text-2xl font-bold">{stats.total}</p>
-            <p className="text-sm text-gray-500">Cards</p>
+            <p className="text-xs text-gray-500">Cards</p>
           </div>
 
           <div className="rounded-xl bg-white p-3 text-center shadow">
             <p className="text-2xl font-bold">{stats.known}</p>
-            <p className="text-sm text-gray-500">Known</p>
+            <p className="text-xs text-gray-500">Known</p>
           </div>
 
           <div className="rounded-xl bg-white p-3 text-center shadow">
             <p className="text-2xl font-bold">{stats.learning}</p>
-            <p className="text-sm text-gray-500">Learning</p>
+            <p className="text-xs text-gray-500">Learning</p>
+          </div>
+
+          <div className="rounded-xl bg-white p-3 text-center shadow">
+            <p className="text-2xl font-bold">{stats.difficult}</p>
+            <p className="text-xs text-gray-500">Difficult</p>
           </div>
         </section>
 
-        {cards.length > 1 && (
-          <button
-            className="mb-4 w-full rounded-xl bg-white px-4 py-3 font-semibold text-gray-800 shadow"
-            onClick={reshuffleCards}
-          >
-            Shuffle cards
-          </button>
+        {cards.length > 0 && (
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            <button
+              className="rounded-xl bg-white px-4 py-3 font-semibold text-gray-800 shadow"
+              onClick={reshuffleCards}
+            >
+              Shuffle
+            </button>
+
+            <button
+              className={`rounded-xl px-4 py-3 font-semibold shadow ${
+                showDifficultOnly
+                  ? "bg-orange-500 text-white"
+                  : "bg-white text-orange-600"
+              }`}
+              onClick={toggleDifficultMode}
+              disabled={stats.difficult === 0}
+            >
+              Difficult
+            </button>
+
+            <button
+              className="rounded-xl bg-white px-4 py-3 font-semibold text-red-600 shadow"
+              onClick={clearCards}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {showDifficultOnly && stats.difficult === 0 && (
+          <section className="rounded-2xl bg-white p-6 text-center shadow">
+            <p className="text-gray-600">
+              No difficult cards yet. Mark cards as difficult while studying.
+            </p>
+          </section>
         )}
 
         {currentCard ? (
           <section className="rounded-2xl bg-white p-6 text-center shadow">
-            <p className="mb-2 text-sm text-gray-500">
-              Card {currentIndex + 1} of {cards.length}
-            </p>
+            <div className="mb-4">
+              <div className="mb-2 flex items-center justify-between text-sm text-gray-500">
+                <span>
+                  {showDifficultOnly ? "Difficult card" : "Card"}{" "}
+                  {currentIndex + 1} of {visibleCards.length}
+                </span>
+                <span>{progressPercent}%</span>
+              </div>
 
-            <div className="mb-6 rounded-2xl border border-gray-200 p-8">
+              <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                <div
+                  className="h-full rounded-full bg-gray-900 transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+
+            <button
+              className="mb-6 w-full rounded-2xl border border-gray-200 p-8 text-center transition active:scale-[0.99]"
+              onClick={() => setShowAnswer((value) => !value)}
+            >
+              <div className="mb-3 flex justify-center">
+                {currentCard.difficult && (
+                  <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                    Difficult
+                  </span>
+                )}
+              </div>
+
               <p className="text-sm uppercase tracking-wide text-gray-500">
                 Dutch
               </p>
 
               <p className="mt-3 text-4xl font-bold">{currentCard.dutch}</p>
 
-              {showAnswer && (
+              {showAnswer ? (
                 <div className="mt-8 border-t pt-6">
                   <p className="text-sm uppercase tracking-wide text-gray-500">
                     English
@@ -317,18 +438,35 @@ brood,bread`}
                     {currentCard.english}
                   </p>
                 </div>
+              ) : (
+                <p className="mt-6 text-sm text-gray-400">
+                  Tap card or press reveal to see answer
+                </p>
               )}
-            </div>
+            </button>
+
+            <button
+              className={`mb-3 w-full rounded-xl px-4 py-3 font-semibold ${
+                currentCard.difficult
+                  ? "bg-orange-500 text-white"
+                  : "bg-orange-100 text-orange-700"
+              }`}
+              onClick={toggleDifficult}
+            >
+              {currentCard.difficult
+                ? "Remove from difficult"
+                : "Mark as difficult"}
+            </button>
 
             {!showAnswer ? (
               <button
-                className="w-full rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
+                className="mb-3 w-full rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
                 onClick={() => setShowAnswer(true)}
               >
                 Reveal answer
               </button>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="mb-3 grid grid-cols-2 gap-3">
                 <button
                   className="rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700"
                   onClick={() => markCard(false)}
@@ -345,28 +483,30 @@ brood,bread`}
               </div>
             )}
 
-            <button
-              className="mt-4 text-sm text-gray-500 underline"
-              onClick={goToNextCard}
-            >
-              Skip card
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                className="rounded-xl bg-gray-200 px-4 py-3 font-semibold text-gray-800"
+                onClick={goToPreviousCard}
+              >
+                Previous
+              </button>
 
-            <br />
-
-            <button
-              className="mt-3 text-sm text-red-500 underline"
-              onClick={clearCards}
-            >
-              Clear all cards
-            </button>
+              <button
+                className="rounded-xl bg-gray-200 px-4 py-3 font-semibold text-gray-800"
+                onClick={goToNextCard}
+              >
+                Next
+              </button>
+            </div>
           </section>
         ) : (
-          <section className="rounded-2xl bg-white p-6 text-center shadow">
-            <p className="text-gray-600">
-              Upload a file to create your first flashcards.
-            </p>
-          </section>
+          !showDifficultOnly && (
+            <section className="rounded-2xl bg-white p-6 text-center shadow">
+              <p className="text-gray-600">
+                Upload a file to create your first flashcards.
+              </p>
+            </section>
+          )
         )}
       </div>
     </main>
