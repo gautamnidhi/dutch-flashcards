@@ -42,6 +42,32 @@ function shuffleCards(cards: Flashcard[]) {
   return [...cards].sort(() => Math.random() - 0.5);
 }
 
+function getLessonSortParts(title: string) {
+  const numbers = title.match(/\d+/g)?.map(Number) || [];
+
+  return {
+    disc: numbers.length >= 2 ? numbers[numbers.length - 2] : 0,
+    lesson: numbers.length >= 1 ? numbers[numbers.length - 1] : Number.MAX_SAFE_INTEGER,
+  };
+}
+
+function sortAudioLessons(lessons: AudioLesson[]) {
+  return [...lessons].sort((a, b) => {
+    const aParts = getLessonSortParts(a.title);
+    const bParts = getLessonSortParts(b.title);
+
+    if (aParts.disc !== bParts.disc) {
+      return aParts.disc - bParts.disc;
+    }
+
+    if (aParts.lesson !== bParts.lesson) {
+      return aParts.lesson - bParts.lesson;
+    }
+
+    return a.title.localeCompare(b.title);
+  });
+}
+
 function speakDutch(text: string) {
   if (typeof window === "undefined") return;
 
@@ -251,7 +277,8 @@ export default function Home() {
 
     if (savedLessons) {
       try {
-        setAudioLessons(normalizeSavedLessons(JSON.parse(savedLessons)));
+        const parsedLessons = normalizeSavedLessons(JSON.parse(savedLessons));
+        setAudioLessons(sortAudioLessons(parsedLessons));
       } catch {
         localStorage.removeItem(AUDIO_LESSONS_KEY);
       }
@@ -659,7 +686,9 @@ export default function Home() {
         return;
       }
 
-      setAudioLessons((existingLessons) => [...newLessons, ...existingLessons]);
+      setAudioLessons((existingLessons) =>
+        sortAudioLessons([...existingLessons, ...newLessons])
+      );
       setAudioMessage(`Uploaded ${newLessons.length} audio lesson(s).`);
     } catch (error) {
       console.error(error);
@@ -720,8 +749,10 @@ export default function Home() {
 
   function toggleLessonDone(lessonId: string) {
     setAudioLessons((existingLessons) =>
-      existingLessons.map((lesson) =>
-        lesson.id === lessonId ? { ...lesson, done: !lesson.done } : lesson
+      sortAudioLessons(
+        existingLessons.map((lesson) =>
+          lesson.id === lessonId ? { ...lesson, done: !lesson.done } : lesson
+        )
       )
     );
   }
@@ -746,7 +777,7 @@ export default function Home() {
       await deleteAudioBlob(lesson.id);
 
       setAudioLessons((existingLessons) =>
-        existingLessons.filter((item) => item.id !== lesson.id)
+        sortAudioLessons(existingLessons.filter((item) => item.id !== lesson.id))
       );
 
       setAudioMessage(`Deleted "${lesson.title}".`);
@@ -1262,7 +1293,7 @@ export default function Home() {
                   </p>
                 </div>
               ) : (
-                audioLessons.map((lesson) => (
+                sortAudioLessons(audioLessons).map((lesson) => (
                   <div
                     key={lesson.id}
                     className="rounded-2xl bg-white p-4 shadow"
