@@ -39,7 +39,7 @@ function speakDutch(text: string) {
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "nl-NL";
-  utterance.rate = 0.85;
+  utterance.rate = 0.65;
 
   const voices = window.speechSynthesis.getVoices();
   const dutchVoice =
@@ -440,8 +440,8 @@ export default function Home() {
             <div className="mb-3">
               <div className="mb-2 flex items-center justify-between text-sm text-gray-500">
                 <span>
-                  {showDifficultOnly ? "Difficult" : "Card"} {currentIndex + 1} /{" "}
-                  {visibleCards.length}
+                  {showDifficultOnly ? "Difficult" : "Card"}{" "}
+                  {currentIndex + 1} / {visibleCards.length}
                 </span>
                 <span>{progressPercent}%</span>
               </div>
