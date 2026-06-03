@@ -258,6 +258,8 @@ export default function Home() {
 
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
+  const [mouseStartX, setMouseStartX] = useState<number | null>(null);
+  const [mouseEndX, setMouseEndX] = useState<number | null>(null);
 
   const [audioLessons, setAudioLessons] = useState<AudioLesson[]>([]);
   const [audioMessage, setAudioMessage] = useState("");
@@ -321,8 +323,8 @@ export default function Home() {
 
   const visibleCards = useMemo(() => {
     return showDifficultOnly
-      ? selectedCards.filter((card) => card.difficult)
-      : selectedCards;
+      ? selectedCards.filter((card) => card.difficult && !card.known)
+      : selectedCards.filter((card) => !card.known);
   }, [selectedCards, showDifficultOnly]);
 
   const currentCard = visibleCards[currentIndex];
@@ -358,6 +360,21 @@ export default function Home() {
     listeningStats.total > 0
       ? Math.round((listeningStats.done / listeningStats.total) * 100)
       : 0;
+
+  useEffect(() => {
+    if (showDifficultOnly && stats.difficult === 0) {
+      setShowDifficultOnly(false);
+      setCurrentIndex(0);
+      setShowAnswer(false);
+    }
+  }, [showDifficultOnly, stats.difficult]);
+
+  useEffect(() => {
+    if (currentIndex >= visibleCards.length) {
+      setCurrentIndex(0);
+      setShowAnswer(false);
+    }
+  }, [currentIndex, visibleCards.length]);
 
   function scrollToTop() {
     window.scrollTo({
@@ -611,6 +628,26 @@ export default function Home() {
     }
   }
 
+  function handleCardMouseSwipe() {
+    if (mouseStartX === null || mouseEndX === null) return;
+
+    const swipeDistance = mouseEndX - mouseStartX;
+    const minimumSwipeDistance = 80;
+
+    setMouseStartX(null);
+    setMouseEndX(null);
+
+    if (Math.abs(swipeDistance) < minimumSwipeDistance) {
+      return;
+    }
+
+    if (swipeDistance > 0) {
+      goToPreviousCard();
+    } else {
+      goToNextCard();
+    }
+  }
+
   function toggleDifficult() {
     if (!currentCard) return;
 
@@ -665,6 +702,18 @@ export default function Home() {
     setShowAnswer(false);
     setShowDifficultOnly(false);
     setMessage(`Deleted "${selectedDeck.name}".`);
+  }
+
+  function resetKnownCards() {
+    if (!selectedDeck) return;
+
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) => ({ ...card, known: false }))
+    );
+
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setMessage("Known cards are back in practice.");
   }
 
   function clearPendingImport() {
@@ -945,14 +994,6 @@ export default function Home() {
 
         {activeTab === "flashcards" && (
           <>
-            {showDifficultOnly && stats.difficult === 0 && (
-              <section className="rounded-2xl bg-white p-6 text-center shadow">
-                <p className="text-gray-600">
-                  No difficult cards in this list yet.
-                </p>
-              </section>
-            )}
-
             {currentCard ? (
               <section className="rounded-2xl bg-white p-4 text-center shadow">
                 <div className="mb-3">
@@ -972,7 +1013,7 @@ export default function Home() {
                   </div>
 
                   <p className="mt-2 text-xs text-gray-400">
-                    Swipe left = next · Swipe right = previous
+                    Swipe or drag left = next · right = previous
                   </p>
                 </div>
 
@@ -988,6 +1029,20 @@ export default function Home() {
                       setTouchEndX(event.targetTouches[0].clientX);
                     }}
                     onTouchEnd={handleCardSwipe}
+                    onMouseDown={(event) => {
+                      setMouseEndX(null);
+                      setMouseStartX(event.clientX);
+                    }}
+                    onMouseMove={(event) => {
+                      if (mouseStartX !== null) {
+                        setMouseEndX(event.clientX);
+                      }
+                    }}
+                    onMouseUp={handleCardMouseSwipe}
+                    onMouseLeave={() => {
+                      setMouseStartX(null);
+                      setMouseEndX(null);
+                    }}
                   >
                     <div className="mb-4 flex flex-wrap justify-center gap-2">
                       {currentCard.difficult && (
@@ -1093,14 +1148,26 @@ export default function Home() {
                   </div>
                 )}
               </section>
+            ) : selectedDeck && stats.known === stats.total && stats.total > 0 ? (
+              <section className="rounded-2xl bg-white p-6 text-center shadow">
+                <p className="font-semibold">You know all cards in this list.</p>
+                <p className="mt-2 text-sm text-gray-500">
+                  Known cards are hidden from normal practice.
+                </p>
+
+                <button
+                  className="mt-4 rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
+                  onClick={resetKnownCards}
+                >
+                  Practice all again
+                </button>
+              </section>
             ) : (
-              !showDifficultOnly && (
-                <section className="rounded-2xl bg-white p-6 text-center shadow">
-                  <p className="text-gray-600">
-                    Upload a file below to create your first list.
-                  </p>
-                </section>
-              )
+              <section className="rounded-2xl bg-white p-6 text-center shadow">
+                <p className="text-gray-600">
+                  Upload a file below to create your first list.
+                </p>
+              </section>
             )}
 
             {selectedDeck && (
@@ -1127,6 +1194,10 @@ export default function Home() {
                   </div>
                 </section>
 
+                <p className="mt-2 text-center text-xs text-gray-500">
+                  Known cards are hidden from normal practice.
+                </p>
+
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <button
                     className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow"
@@ -1142,7 +1213,7 @@ export default function Home() {
                         : "bg-white text-orange-600"
                     }`}
                     onClick={toggleDifficultMode}
-                    disabled={stats.difficult === 0}
+                    disabled={stats.difficult === 0 && !showDifficultOnly}
                   >
                     Difficult
                   </button>
@@ -1154,6 +1225,15 @@ export default function Home() {
                     Delete
                   </button>
                 </div>
+
+                {stats.known > 0 && (
+                  <button
+                    className="mt-2 w-full rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 shadow"
+                    onClick={resetKnownCards}
+                  >
+                    Practice known cards again
+                  </button>
+                )}
               </>
             )}
 
