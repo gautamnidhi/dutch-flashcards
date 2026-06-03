@@ -591,21 +591,8 @@ export default function Home() {
     goToNextCard();
   }
 
-  function markCurrentCardDifficultAndNext() {
-    if (!currentCard) return;
-
-    updateSelectedDeckCards((cards) =>
-      cards.map((card) =>
-        card.id === currentCard.id ? { ...card, difficult: true } : card
-      )
-    );
-
-    goToNextCard();
-  }
-
   function handleCardSwipe() {
     if (touchStartX === null || touchEndX === null) return;
-    if (!currentCard) return;
 
     const swipeDistance = touchEndX - touchStartX;
     const minimumSwipeDistance = 80;
@@ -618,9 +605,9 @@ export default function Home() {
     }
 
     if (swipeDistance > 0) {
-      markCard(true);
+      goToPreviousCard();
     } else {
-      markCurrentCardDifficultAndNext();
+      goToNextCard();
     }
   }
 
@@ -985,13 +972,13 @@ export default function Home() {
                   </div>
 
                   <p className="mt-2 text-xs text-gray-400">
-                    Swipe left = difficult · Swipe right = known
+                    Swipe left = next · Swipe right = previous
                   </p>
                 </div>
 
-                <div className="relative mb-4 min-h-[380px] rounded-2xl border border-gray-200">
+                <div className="relative mb-4 min-h-[320px] rounded-2xl border border-gray-200">
                   <button
-                    className="flex min-h-[300px] w-full flex-col items-center justify-center rounded-2xl px-8 py-10 pb-24 text-center transition active:scale-[0.99]"
+                    className="flex min-h-[320px] w-full flex-col items-center justify-center rounded-2xl px-8 py-10 text-center transition active:scale-[0.99]"
                     onClick={() => setShowAnswer((value) => !value)}
                     onTouchStart={(event) => {
                       setTouchEndX(null);
@@ -1073,24 +1060,6 @@ export default function Home() {
                       </p>
                     )}
                   </button>
-
-                  <div className="absolute bottom-4 left-4 right-4 grid grid-cols-2 gap-3">
-                    <button
-                      className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700 shadow active:scale-95"
-                      onClick={goToPreviousCard}
-                      aria-label="Previous card"
-                    >
-                      ← Previous
-                    </button>
-
-                    <button
-                      className="rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white shadow active:scale-95"
-                      onClick={goToNextCard}
-                      aria-label="Next card"
-                    >
-                      Next →
-                    </button>
-                  </div>
                 </div>
 
                 <button
@@ -1463,7 +1432,7 @@ export default function Home() {
                       />
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="mt-4 grid grid-cols-2 gap-2">
                       <button
                         className="rounded-xl bg-gray-900 px-3 py-3 text-sm font-semibold text-white"
                         onClick={() => playAudioLesson(lesson)}
@@ -1482,13 +1451,6 @@ export default function Home() {
                         onClick={() => toggleLessonDone(lesson.id)}
                       >
                         {lesson.done ? "Done" : "Mark done"}
-                      </button>
-
-                      <button
-                        className="rounded-xl bg-red-100 px-3 py-3 text-sm font-semibold text-red-700"
-                        onClick={() => deleteAudioLesson(lesson)}
-                      >
-                        Delete
                       </button>
                     </div>
                   </div>
