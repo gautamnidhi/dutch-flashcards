@@ -10,7 +10,7 @@ import {
   STORAGE_KEY,
   addDaysToToday,
   createId,
-  getDailyCards,
+  getTodayInitialCardIds,
   getTodayKey,
   isDueToday,
   normalizeSavedDecks,
@@ -28,6 +28,11 @@ export default function FlashcardsSection() {
 
   const [studyMode, setStudyMode] = useState<StudyMode>("practice");
   const [dailyLimit, setDailyLimit] = useState("20");
+  const [todayRefreshSeed] = useState(() => createId());
+  const [todayQueueIdsBySession, setTodayQueueIdsBySession] = useState<
+    Record<string, string[]>
+  >({});
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
@@ -82,6 +87,36 @@ export default function FlashcardsSection() {
   }, [decks, selectedDeckId]);
 
   const selectedCards = selectedDeck?.cards || [];
+  const todaySessionKey = `${selectedDeckId}-${dailyLimit}-${todayRefreshSeed}`;
+
+  useEffect(() => {
+    if (!selectedDeck || !todaySessionKey) return;
+
+    setTodayQueueIdsBySession((existing) => {
+      if (existing[todaySessionKey]) {
+        return existing;
+      }
+
+      const unknownCards = selectedDeck.cards.filter((card) => !card.known);
+
+      const initialQueueIds = getTodayInitialCardIds(
+        unknownCards,
+        dailyLimit,
+        todayRefreshSeed
+      );
+
+      return {
+        ...existing,
+        [todaySessionKey]: initialQueueIds,
+      };
+    });
+  }, [
+    selectedDeck,
+    selectedDeckId,
+    dailyLimit,
+    todayRefreshSeed,
+    todaySessionKey,
+  ]);
 
   const stats = useMemo(() => {
     const known = selectedCards.filter((card) => card.known).length;
@@ -119,11 +154,15 @@ export default function FlashcardsSection() {
     }
 
     if (studyMode === "today") {
-      return getDailyCards(unknownCards, dailyLimit);
+      const todayQueueIds = todayQueueIdsBySession[todaySessionKey] || [];
+
+      return todayQueueIds
+        .map((cardId) => selectedCards.find((card) => card.id === cardId))
+        .filter((card): card is Flashcard => Boolean(card));
     }
 
     return unknownCards;
-  }, [selectedCards, studyMode, dailyLimit]);
+  }, [selectedCards, studyMode, todayQueueIdsBySession, todaySessionKey]);
 
   const currentCard = visibleCards[currentIndex];
 
@@ -332,8 +371,30 @@ export default function FlashcardsSection() {
     setShowAnswer(false);
   }
 
+  function removeFromTodayQueue(cardId: string, addToEnd: boolean) {
+    setTodayQueueIdsBySession((existing) => {
+      const currentQueue = existing[todaySessionKey] || [];
+      const queueWithoutCard = currentQueue.filter((id) => id !== cardId);
+
+      return {
+        ...existing,
+        [todaySessionKey]: addToEnd
+          ? [...queueWithoutCard, cardId]
+          : queueWithoutCard,
+      };
+    });
+
+    setCurrentIndex(0);
+    setShowAnswer(false);
+  }
+
   function goToNextCard() {
     setShowAnswer(false);
+
+    if (studyMode === "today" && currentCard) {
+      removeFromTodayQueue(currentCard.id, false);
+      return;
+    }
 
     setCurrentIndex((index) => {
       if (visibleCards.length === 0) return 0;
@@ -363,7 +424,7 @@ export default function FlashcardsSection() {
     let difficult = currentCard.difficult;
 
     if (rating === "again") {
-      intervalDays = 1;
+      intervalDays = 0;
       ease = Math.max(1.3, currentEase - 0.2);
       difficult = true;
     }
@@ -406,15 +467,29 @@ export default function FlashcardsSection() {
               intervalDays,
               reviewCount: currentReviewCount + 1,
               lastReviewedDate: getTodayKey(),
-              nextReviewDate: known ? "" : addDaysToToday(intervalDays),
+              nextReviewDate:
+                known
+                  ? ""
+                  : intervalDays === 0
+                  ? getTodayKey()
+                  : addDaysToToday(intervalDays),
             }
           : card
       )
     );
 
     setMessage(
-      known ? "Marked as known." : `Next review in ${intervalDays} day(s).`
+      known
+        ? "Marked as known."
+        : intervalDays === 0
+        ? "Marked Again. It moved to the end of today’s queue."
+        : `Next review in ${intervalDays} day(s).`
     );
+
+    if (studyMode === "today") {
+      removeFromTodayQueue(currentCard.id, rating === "again");
+      return;
+    }
 
     goToNextCard();
   }
@@ -495,6 +570,12 @@ export default function FlashcardsSection() {
           : card
       )
     );
+
+    if (studyMode === "today") {
+      removeFromTodayQueue(currentCard.id, false);
+      setMessage("Removed from hard cards and today’s queue.");
+      return;
+    }
 
     setMessage("Removed from hard cards.");
 
@@ -635,7 +716,7 @@ export default function FlashcardsSection() {
           {studyMode === "today" && (
             <label className="mt-3 block">
               <span className="mb-1 block text-xs font-medium text-gray-500">
-                Cards today. Due review cards are shown first.
+                Fixed queue: Next removes, Again moves to end.
               </span>
 
               <select
@@ -647,11 +728,11 @@ export default function FlashcardsSection() {
                   setShowAnswer(false);
                 }}
               >
-                <option value="10">10 cards</option>
-                <option value="20">20 cards</option>
-                <option value="30">30 cards</option>
-                <option value="50">50 cards</option>
-                <option value="all">All due + new cards</option>
+                <option value="10">10 new cards + due</option>
+                <option value="20">20 new cards + due</option>
+                <option value="30">30 new cards + due</option>
+                <option value="50">50 new cards + due</option>
+                <option value="all">All new + due cards</option>
               </select>
             </label>
           )}
@@ -689,7 +770,7 @@ export default function FlashcardsSection() {
             </div>
 
             <p className="mt-2 text-xs text-gray-400">
-              Swipe or drag left = next · right = previous
+              Swipe or drag left = remove/next · right = previous
             </p>
           </div>
 
@@ -864,6 +945,20 @@ export default function FlashcardsSection() {
             </div>
           )}
         </section>
+      ) : selectedDeck && studyMode === "today" && visibleCards.length === 0 ? (
+        <section className="rounded-2xl bg-white p-6 text-center shadow">
+          <p className="text-2xl font-bold">You’re done for the day 🎉</p>
+          <p className="mt-2 text-sm text-gray-500">
+            Well done. Today’s queue is finished.
+          </p>
+
+          <button
+            className="mt-4 rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
+            onClick={() => changeStudyMode("practice")}
+          >
+            Practise extra cards
+          </button>
+        </section>
       ) : selectedDeck && stats.known === stats.total && stats.total > 0 ? (
         <section className="rounded-2xl bg-white p-6 text-center shadow">
           <p className="font-semibold">You know all cards in this list.</p>
@@ -881,8 +976,7 @@ export default function FlashcardsSection() {
       ) : selectedDeck ? (
         <section className="rounded-2xl bg-white p-6 text-center shadow">
           <p className="text-gray-600">
-            No cards in this mode. Try Practice, Today, Known, or upload more
-            cards.
+            No cards in this mode. Try Practice, Known, or upload more cards.
           </p>
         </section>
       ) : (
@@ -918,7 +1012,8 @@ export default function FlashcardsSection() {
           </section>
 
           <p className="mt-2 text-center text-xs text-gray-500">
-            Today shows due cards first, then new cards.
+            Today uses a fixed queue. Next removes a card; Again sends it to the
+            end.
           </p>
 
           <div className="mt-4 grid grid-cols-3 gap-2">

@@ -38,37 +38,37 @@ export function hashString(value: string) {
   return Math.abs(hash);
 }
 
-export function getDailyCards(cards: Flashcard[], limit: string) {
+export function getTodayInitialCardIds(
+  cards: Flashcard[],
+  limit: string,
+  refreshSeed: string
+) {
+  const newCards = cards.filter((card) => !card.known && !card.nextReviewDate);
+
   const dueCards = cards.filter(
-    (card) => card.nextReviewDate && isDueToday(card)
-  );
-
-  const dueIds = new Set(dueCards.map((card) => card.id));
-
-  const newCards = cards.filter(
-    (card) => !dueIds.has(card.id) && !card.nextReviewDate
+    (card) => !card.known && card.nextReviewDate && isDueToday(card)
   );
 
   const sortedNewCards = [...newCards].sort((a, b) => {
-    const seed = getTodayKey();
-
     return (
-      hashString(`${seed}-${a.id}-${a.dutch}`) -
-      hashString(`${seed}-${b.id}-${b.dutch}`)
+      hashString(`${refreshSeed}-${limit}-${a.id}-${a.dutch}`) -
+      hashString(`${refreshSeed}-${limit}-${b.id}-${b.dutch}`)
     );
   });
 
-  if (limit === "all") {
-    return [...dueCards, ...sortedNewCards];
-  }
+  const sortedDueCards = [...dueCards].sort((a, b) => {
+    return (
+      hashString(`${refreshSeed}-due-${a.id}-${a.dutch}`) -
+      hashString(`${refreshSeed}-due-${b.id}-${b.dutch}`)
+    );
+  });
 
-  const parsedLimit = Number(limit);
-  const safeLimit =
-    Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 20;
+  const selectedNewCards =
+    limit === "all"
+      ? sortedNewCards
+      : sortedNewCards.slice(0, Number(limit) || 20);
 
-  const remainingSlots = Math.max(safeLimit - dueCards.length, 0);
-
-  return [...dueCards, ...sortedNewCards.slice(0, remainingSlots)];
+  return [...selectedNewCards, ...sortedDueCards].map((card) => card.id);
 }
 
 export function speakDutch(text: string) {
