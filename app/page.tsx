@@ -13,6 +13,9 @@ type Flashcard = {
   type?: string;
   topic?: string;
   examSkill?: string;
+  reviewCount?: number;
+  nextReviewDate?: string;
+  lastReviewedDate?: string;
 };
 
 type Deck = {
@@ -31,10 +34,14 @@ type AudioLesson = {
   fileSize?: number;
 };
 
+type StudyMode = "practice" | "today" | "difficult" | "known";
+
 const STORAGE_KEY = "dutch-english-flashcard-decks";
 const AUDIO_LESSONS_KEY = "dutch-listening-lessons";
+const DAILY_LIMIT_KEY = "dutch-daily-card-limit";
 const AUDIO_DB_NAME = "dutch-listening-audio-db";
 const AUDIO_STORE_NAME = "audio-files";
+const REVIEW_INTERVALS = [1, 3, 7, 14, 30];
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -42,6 +49,64 @@ function createId() {
 
 function shuffleCards(cards: Flashcard[]) {
   return [...cards].sort(() => Math.random() - 0.5);
+}
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addDaysToToday(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function isDueToday(card: Flashcard) {
+  if (!card.nextReviewDate) return false;
+  return card.nextReviewDate <= getTodayKey();
+}
+
+function getNextReviewInterval(reviewCount: number) {
+  const index = Math.min(reviewCount, REVIEW_INTERVALS.length - 1);
+  return REVIEW_INTERVALS[index];
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash);
+}
+
+function getDailyCards(cards: Flashcard[], limit: string) {
+  const dueCards = cards.filter((card) => card.difficult && isDueToday(card));
+  const dueIds = new Set(dueCards.map((card) => card.id));
+  const nonDueCards = cards.filter((card) => !dueIds.has(card.id));
+
+  const sortedCards = [...nonDueCards].sort((a, b) => {
+    const seed = getTodayKey();
+
+    return (
+      hashString(`${seed}-${a.id}-${a.dutch}`) -
+      hashString(`${seed}-${b.id}-${b.dutch}`)
+    );
+  });
+
+  if (limit === "all") {
+    return [...dueCards, ...sortedCards];
+  }
+
+  const parsedLimit = Number(limit);
+  const safeLimit =
+    Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 20;
+
+  const remainingSlots = Math.max(safeLimit - dueCards.length, 0);
+
+  return [...dueCards, ...sortedCards.slice(0, remainingSlots)];
 }
 
 function getLessonSortParts(title: string) {
@@ -132,6 +197,9 @@ function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
       type: String(card.type || "").trim(),
       topic: String(card.topic || "").trim(),
       examSkill: String(card.examSkill || "").trim(),
+      reviewCount: Number(card.reviewCount || 0),
+      nextReviewDate: String(card.nextReviewDate || "").trim(),
+      lastReviewedDate: String(card.lastReviewedDate || "").trim(),
     }));
 }
 
@@ -249,17 +317,26 @@ export default function Home() {
   const [deckName, setDeckName] = useState("");
   const [pendingCards, setPendingCards] = useState<Flashcard[]>([]);
   const [pendingFileName, setPendingFileName] = useState("");
+
+  const [studyMode, setStudyMode] = useState<StudyMode>("practice");
+  const [dailyLimit, setDailyLimit] = useState("20");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [showDifficultOnly, setShowDifficultOnly] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const [manualDutch, setManualDutch] = useState("");
+  const [manualEnglish, setManualEnglish] = useState("");
+  const [manualType, setManualType] = useState("");
+  const [manualTopic, setManualTopic] = useState("");
+  const [manualExamSkill, setManualExamSkill] = useState("");
 
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
   const [mouseStartX, setMouseStartX] = useState<number | null>(null);
   const [mouseEndX, setMouseEndX] = useState<number | null>(null);
+  const cardSwipeTriggeredRef = useRef(false);
 
   const [audioLessons, setAudioLessons] = useState<AudioLesson[]>([]);
   const [audioMessage, setAudioMessage] = useState("");
@@ -270,6 +347,7 @@ export default function Home() {
   const [audioTouchStartX, setAudioTouchStartX] = useState<number | null>(null);
   const [audioTouchEndX, setAudioTouchEndX] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioPlayRequestRef = useRef(0);
 
   useEffect(() => {
     const savedDecks = localStorage.getItem(STORAGE_KEY);
@@ -297,6 +375,12 @@ export default function Home() {
         localStorage.removeItem(AUDIO_LESSONS_KEY);
       }
     }
+
+    const savedDailyLimit = localStorage.getItem(DAILY_LIMIT_KEY);
+
+    if (savedDailyLimit) {
+      setDailyLimit(savedDailyLimit);
+    }
   }, []);
 
   useEffect(() => {
@@ -306,6 +390,10 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(AUDIO_LESSONS_KEY, JSON.stringify(audioLessons));
   }, [audioLessons]);
+
+  useEffect(() => {
+    localStorage.setItem(DAILY_LIMIT_KEY, dailyLimit);
+  }, [dailyLimit]);
 
   useEffect(() => {
     return () => {
@@ -321,25 +409,51 @@ export default function Home() {
 
   const selectedCards = selectedDeck?.cards || [];
 
-  const visibleCards = useMemo(() => {
-    return showDifficultOnly
-      ? selectedCards.filter((card) => card.difficult && !card.known)
-      : selectedCards.filter((card) => !card.known);
-  }, [selectedCards, showDifficultOnly]);
-
-  const currentCard = visibleCards[currentIndex];
-
   const stats = useMemo(() => {
     const known = selectedCards.filter((card) => card.known).length;
     const difficult = selectedCards.filter((card) => card.difficult).length;
+    const due = selectedCards.filter(
+      (card) => !card.known && card.difficult && isDueToday(card)
+    ).length;
 
     return {
       total: selectedCards.length,
       known,
       learning: selectedCards.length - known,
       difficult,
+      due,
     };
   }, [selectedCards]);
+
+  const visibleCards = useMemo(() => {
+    const unknownCards = selectedCards.filter((card) => !card.known);
+
+    if (studyMode === "known") {
+      return selectedCards.filter((card) => card.known);
+    }
+
+    if (studyMode === "difficult") {
+      return unknownCards.filter((card) => card.difficult);
+    }
+
+    if (studyMode === "today") {
+      return getDailyCards(unknownCards, dailyLimit);
+    }
+
+    return unknownCards;
+  }, [selectedCards, studyMode, dailyLimit]);
+
+  const currentCard = visibleCards[currentIndex];
+
+  const sortedAudioLessons = useMemo(() => {
+    return sortAudioLessons(audioLessons);
+  }, [audioLessons]);
+
+  const currentAudioLesson = useMemo(() => {
+    return sortedAudioLessons.find(
+      (lesson) => lesson.id === currentAudioLessonId
+    );
+  }, [sortedAudioLessons, currentAudioLessonId]);
 
   const listeningStats = useMemo(() => {
     const done = audioLessons.filter((lesson) => lesson.done).length;
@@ -362,12 +476,12 @@ export default function Home() {
       : 0;
 
   useEffect(() => {
-    if (showDifficultOnly && stats.difficult === 0) {
-      setShowDifficultOnly(false);
+    if (studyMode === "difficult" && visibleCards.length === 0) {
+      setStudyMode("practice");
       setCurrentIndex(0);
       setShowAnswer(false);
     }
-  }, [showDifficultOnly, stats.difficult]);
+  }, [studyMode, visibleCards.length]);
 
   useEffect(() => {
     if (currentIndex >= visibleCards.length) {
@@ -381,6 +495,13 @@ export default function Home() {
       top: 0,
       behavior: "smooth",
     });
+  }
+
+  function changeStudyMode(mode: StudyMode) {
+    setStudyMode(mode);
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setMessage("");
   }
 
   function updateSelectedDeckCards(
@@ -523,6 +644,9 @@ export default function Home() {
           type: type.trim(),
           topic: topic.trim(),
           examSkill: examSkill.trim(),
+          reviewCount: 0,
+          nextReviewDate: "",
+          lastReviewedDate: "",
         };
       })
       .filter((card) => card.dutch && card.english);
@@ -543,9 +667,9 @@ export default function Home() {
 
     setDecks((existingDecks) => [newDeck, ...existingDecks]);
     setSelectedDeckId(newDeck.id);
+    setStudyMode("practice");
     setCurrentIndex(0);
     setShowAnswer(false);
-    setShowDifficultOnly(false);
     setShowUpload(false);
     setPendingCards([]);
     setPendingFileName("");
@@ -568,14 +692,66 @@ export default function Home() {
 
     updateSelectedDeckCards((cards) => shuffleCards([...cards, ...pendingCards]));
 
+    setStudyMode("practice");
     setCurrentIndex(0);
     setShowAnswer(false);
-    setShowDifficultOnly(false);
     setShowUpload(false);
     setPendingCards([]);
     setPendingFileName("");
     setDeckName("");
     setMessage(`Added ${addedCount} cards to "${selectedDeck.name}".`);
+  }
+
+  function addManualCard() {
+    setError("");
+    setMessage("");
+
+    const dutch = manualDutch.trim();
+    const english = manualEnglish.trim();
+
+    if (!dutch || !english) {
+      setError("Please enter both Dutch and English.");
+      return;
+    }
+
+    const newCard: Flashcard = {
+      id: createId(),
+      dutch,
+      english,
+      known: false,
+      difficult: false,
+      type: manualType.trim(),
+      topic: manualTopic.trim(),
+      examSkill: manualExamSkill.trim(),
+      reviewCount: 0,
+      nextReviewDate: "",
+      lastReviewedDate: "",
+    };
+
+    if (selectedDeck) {
+      updateSelectedDeckCards((cards) => [newCard, ...cards]);
+      setMessage(`Added "${dutch}" to "${selectedDeck.name}".`);
+    } else {
+      const newDeck: Deck = {
+        id: createId(),
+        name: "My words",
+        cards: [newCard],
+        createdAt: new Date().toISOString(),
+      };
+
+      setDecks((existingDecks) => [newDeck, ...existingDecks]);
+      setSelectedDeckId(newDeck.id);
+      setMessage(`Created "My words" and added "${dutch}".`);
+    }
+
+    setManualDutch("");
+    setManualEnglish("");
+    setManualType("");
+    setManualTopic("");
+    setManualExamSkill("");
+    setStudyMode("practice");
+    setCurrentIndex(0);
+    setShowAnswer(false);
   }
 
   function goToNextCard() {
@@ -601,10 +777,60 @@ export default function Home() {
 
     updateSelectedDeckCards((cards) =>
       cards.map((card) =>
-        card.id === currentCard.id ? { ...card, known } : card
+        card.id === currentCard.id
+          ? {
+              ...card,
+              known,
+              difficult: known ? false : card.difficult,
+              nextReviewDate: known ? "" : card.nextReviewDate,
+              lastReviewedDate: getTodayKey(),
+            }
+          : card
       )
     );
 
+    goToNextCard();
+  }
+
+  function scheduleCurrentCardAsDifficult() {
+    if (!currentCard) return;
+
+    const currentReviewCount = Number(currentCard.reviewCount || 0);
+    const intervalDays = getNextReviewInterval(currentReviewCount);
+    const nextReviewDate = addDaysToToday(intervalDays);
+
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) =>
+        card.id === currentCard.id
+          ? {
+              ...card,
+              difficult: true,
+              known: false,
+              reviewCount: currentReviewCount + 1,
+              lastReviewedDate: getTodayKey(),
+              nextReviewDate,
+            }
+          : card
+      )
+    );
+
+    setMessage(`Marked difficult. It will return on ${nextReviewDate}.`);
+
+    if (studyMode === "difficult") {
+      setCurrentIndex(0);
+    }
+  }
+
+  function removeCurrentCardFromKnown() {
+    if (!currentCard) return;
+
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) =>
+        card.id === currentCard.id ? { ...card, known: false } : card
+      )
+    );
+
+    setMessage(`Moved "${currentCard.dutch}" back to practice.`);
     goToNextCard();
   }
 
@@ -620,6 +846,8 @@ export default function Home() {
     if (Math.abs(swipeDistance) < minimumSwipeDistance) {
       return;
     }
+
+    cardSwipeTriggeredRef.current = true;
 
     if (swipeDistance > 0) {
       goToPreviousCard();
@@ -641,6 +869,8 @@ export default function Home() {
       return;
     }
 
+    cardSwipeTriggeredRef.current = true;
+
     if (swipeDistance > 0) {
       goToPreviousCard();
     } else {
@@ -648,34 +878,28 @@ export default function Home() {
     }
   }
 
-  function toggleDifficult() {
+  function removeDifficultFromCurrentCard() {
     if (!currentCard) return;
 
     updateSelectedDeckCards((cards) =>
       cards.map((card) =>
         card.id === currentCard.id
-          ? { ...card, difficult: !card.difficult }
+          ? {
+              ...card,
+              difficult: false,
+              nextReviewDate: "",
+              reviewCount: 0,
+            }
           : card
       )
     );
 
-    setMessage(
-      currentCard.difficult
-        ? "Removed from difficult cards."
-        : "Added to difficult cards."
-    );
+    setMessage("Removed from difficult cards.");
 
-    if (showDifficultOnly) {
+    if (studyMode === "difficult") {
       setCurrentIndex(0);
       setShowAnswer(false);
     }
-  }
-
-  function toggleDifficultMode() {
-    setShowDifficultOnly((value) => !value);
-    setCurrentIndex(0);
-    setShowAnswer(false);
-    setMessage("");
   }
 
   function reshuffleCurrentDeck() {
@@ -698,9 +922,9 @@ export default function Home() {
 
     setDecks(remainingDecks);
     setSelectedDeckId(remainingDecks[0]?.id || "");
+    setStudyMode("practice");
     setCurrentIndex(0);
     setShowAnswer(false);
-    setShowDifficultOnly(false);
     setMessage(`Deleted "${selectedDeck.name}".`);
   }
 
@@ -711,9 +935,29 @@ export default function Home() {
       cards.map((card) => ({ ...card, known: false }))
     );
 
+    setStudyMode("practice");
     setCurrentIndex(0);
     setShowAnswer(false);
     setMessage("Known cards are back in practice.");
+  }
+
+  function resetReviewSchedule() {
+    if (!selectedDeck) return;
+
+    updateSelectedDeckCards((cards) =>
+      cards.map((card) => ({
+        ...card,
+        difficult: false,
+        reviewCount: 0,
+        nextReviewDate: "",
+        lastReviewedDate: "",
+      }))
+    );
+
+    setStudyMode("practice");
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setMessage("Review schedule reset.");
   }
 
   function clearPendingImport() {
@@ -726,9 +970,9 @@ export default function Home() {
 
   function handleDeckChange(deckId: string) {
     setSelectedDeckId(deckId);
+    setStudyMode("practice");
     setCurrentIndex(0);
     setShowAnswer(false);
-    setShowDifficultOnly(false);
     setMessage("");
   }
 
@@ -820,21 +1064,42 @@ export default function Home() {
     setAudioMessage("");
     setAudioError("");
 
+    const requestId = audioPlayRequestRef.current + 1;
+    audioPlayRequestRef.current = requestId;
+
     try {
-      if (currentAudioLessonId === lesson.id && audioRef.current) {
-        if (audioRef.current.paused) {
-          await audioRef.current.play();
-          setIsAudioPlaying(true);
+      const audioElement = audioRef.current;
+
+      if (currentAudioLessonId === lesson.id && audioElement) {
+        if (audioElement.paused) {
+          try {
+            await audioElement.play();
+
+            if (audioPlayRequestRef.current === requestId) {
+              setIsAudioPlaying(true);
+            }
+          } catch (error) {
+            const playError = error as DOMException;
+
+            if (playError.name !== "AbortError") {
+              console.error(error);
+              setAudioError("Could not play this audio.");
+            }
+
+            setIsAudioPlaying(false);
+          }
         } else {
-          audioRef.current.pause();
+          audioElement.pause();
           setIsAudioPlaying(false);
         }
 
         return;
       }
 
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.removeAttribute("src");
+        audioElement.load();
       }
 
       if (currentAudioUrl) {
@@ -848,23 +1113,70 @@ export default function Home() {
         return;
       }
 
+      if (audioPlayRequestRef.current !== requestId) {
+        return;
+      }
+
       const url = URL.createObjectURL(blob);
 
       setCurrentAudioUrl(url);
       setCurrentAudioLessonId(lesson.id);
-      setIsAudioPlaying(true);
 
-      setTimeout(async () => {
-        if (audioRef.current) {
-          audioRef.current.src = url;
-          await audioRef.current.play();
+      requestAnimationFrame(async () => {
+        const freshAudioElement = audioRef.current;
+
+        if (!freshAudioElement || audioPlayRequestRef.current !== requestId) {
+          URL.revokeObjectURL(url);
+          return;
         }
-      }, 0);
+
+        try {
+          freshAudioElement.src = url;
+          freshAudioElement.load();
+
+          await freshAudioElement.play();
+
+          if (audioPlayRequestRef.current === requestId) {
+            setIsAudioPlaying(true);
+          }
+        } catch (error) {
+          const playError = error as DOMException;
+
+          if (playError.name !== "AbortError") {
+            console.error(error);
+            setAudioError("Could not play this audio.");
+          }
+
+          setIsAudioPlaying(false);
+        }
+      });
     } catch (error) {
       console.error(error);
       setAudioError("Could not play this audio.");
       setIsAudioPlaying(false);
     }
+  }
+
+  function playRelativeAudioLesson(direction: "previous" | "next") {
+    if (sortedAudioLessons.length === 0) return;
+
+    const currentIndex = sortedAudioLessons.findIndex(
+      (lesson) => lesson.id === currentAudioLessonId
+    );
+
+    let nextIndex = 0;
+
+    if (currentIndex >= 0) {
+      if (direction === "previous") {
+        nextIndex =
+          currentIndex === 0 ? sortedAudioLessons.length - 1 : currentIndex - 1;
+      } else {
+        nextIndex =
+          currentIndex === sortedAudioLessons.length - 1 ? 0 : currentIndex + 1;
+      }
+    }
+
+    void playAudioLesson(sortedAudioLessons[nextIndex]);
   }
 
   function toggleLessonDone(lessonId: string) {
@@ -923,7 +1235,7 @@ export default function Home() {
     if (swipeDistance > 0) {
       toggleLessonDone(lesson.id);
     } else {
-      deleteAudioLesson(lesson);
+      void deleteAudioLesson(lesson);
     }
   }
 
@@ -994,12 +1306,100 @@ export default function Home() {
 
         {activeTab === "flashcards" && (
           <>
+            {selectedDeck && (
+              <section className="mb-4 rounded-2xl bg-white p-3 shadow">
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    className={`rounded-xl px-2 py-2 text-xs font-semibold ${
+                      studyMode === "practice"
+                        ? "bg-gray-900 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                    onClick={() => changeStudyMode("practice")}
+                  >
+                    Practice
+                  </button>
+
+                  <button
+                    className={`rounded-xl px-2 py-2 text-xs font-semibold ${
+                      studyMode === "today"
+                        ? "bg-gray-900 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                    onClick={() => changeStudyMode("today")}
+                  >
+                    Today
+                  </button>
+
+                  <button
+                    className={`rounded-xl px-2 py-2 text-xs font-semibold ${
+                      studyMode === "difficult"
+                        ? "bg-orange-500 text-white"
+                        : "bg-gray-100 text-orange-700"
+                    }`}
+                    onClick={() => changeStudyMode("difficult")}
+                    disabled={stats.difficult === 0}
+                  >
+                    Hard
+                  </button>
+
+                  <button
+                    className={`rounded-xl px-2 py-2 text-xs font-semibold ${
+                      studyMode === "known"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-100 text-green-700"
+                    }`}
+                    onClick={() => changeStudyMode("known")}
+                    disabled={stats.known === 0}
+                  >
+                    Known
+                  </button>
+                </div>
+
+                {studyMode === "today" && (
+                  <label className="mt-3 block">
+                    <span className="mb-1 block text-xs font-medium text-gray-500">
+                      Cards today. Due difficult cards are always included.
+                    </span>
+
+                    <select
+                      className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                      value={dailyLimit}
+                      onChange={(event) => {
+                        setDailyLimit(event.target.value);
+                        setCurrentIndex(0);
+                        setShowAnswer(false);
+                      }}
+                    >
+                      <option value="10">10 cards</option>
+                      <option value="20">20 cards</option>
+                      <option value="30">30 cards</option>
+                      <option value="50">50 cards</option>
+                      <option value="all">All unknown cards</option>
+                    </select>
+                  </label>
+                )}
+
+                {stats.due > 0 && (
+                  <p className="mt-2 rounded-lg bg-orange-50 p-2 text-xs text-orange-700">
+                    {stats.due} difficult card(s) due for review today.
+                  </p>
+                )}
+              </section>
+            )}
+
             {currentCard ? (
               <section className="rounded-2xl bg-white p-4 text-center shadow">
                 <div className="mb-3">
                   <div className="mb-2 flex items-center justify-between text-sm text-gray-500">
                     <span>
-                      {showDifficultOnly ? "Difficult" : "Card"}{" "}
+                      {studyMode === "today"
+                        ? "Today"
+                        : studyMode === "difficult"
+                        ? "Difficult"
+                        : studyMode === "known"
+                        ? "Known"
+                        : "Card"}{" "}
                       {currentIndex + 1} / {visibleCards.length}
                     </span>
                     <span>{progressPercent}%</span>
@@ -1020,7 +1420,14 @@ export default function Home() {
                 <div className="relative mb-4 min-h-[320px] rounded-2xl border border-gray-200">
                   <button
                     className="flex min-h-[320px] w-full flex-col items-center justify-center rounded-2xl px-8 py-10 text-center transition active:scale-[0.99]"
-                    onClick={() => setShowAnswer((value) => !value)}
+                    onClick={() => {
+                      if (cardSwipeTriggeredRef.current) {
+                        cardSwipeTriggeredRef.current = false;
+                        return;
+                      }
+
+                      setShowAnswer((value) => !value);
+                    }}
                     onTouchStart={(event) => {
                       setTouchEndX(null);
                       setTouchStartX(event.targetTouches[0].clientX);
@@ -1048,6 +1455,12 @@ export default function Home() {
                       {currentCard.difficult && (
                         <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
                           Difficult
+                        </span>
+                      )}
+
+                      {currentCard.nextReviewDate && !currentCard.known && (
+                        <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-700">
+                          Review: {currentCard.nextReviewDate}
                         </span>
                       )}
 
@@ -1117,20 +1530,39 @@ export default function Home() {
                   </button>
                 </div>
 
-                <button
-                  className={`mb-3 w-full rounded-xl px-4 py-3 font-semibold ${
-                    currentCard.difficult
-                      ? "bg-orange-500 text-white"
-                      : "bg-orange-100 text-orange-700"
-                  }`}
-                  onClick={toggleDifficult}
-                >
-                  {currentCard.difficult
-                    ? "Remove from difficult"
-                    : "Mark as difficult"}
-                </button>
+                {studyMode === "known" ? (
+                  <button
+                    className="mb-3 w-full rounded-xl bg-green-100 px-4 py-3 font-semibold text-green-700"
+                    onClick={removeCurrentCardFromKnown}
+                  >
+                    Move back to practice
+                  </button>
+                ) : currentCard.difficult ? (
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <button
+                      className="rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white"
+                      onClick={scheduleCurrentCardAsDifficult}
+                    >
+                      Still difficult
+                    </button>
 
-                {showAnswer && (
+                    <button
+                      className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
+                      onClick={removeDifficultFromCurrentCard}
+                    >
+                      Remove hard
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="mb-3 w-full rounded-xl bg-orange-100 px-4 py-3 font-semibold text-orange-700"
+                    onClick={scheduleCurrentCardAsDifficult}
+                  >
+                    Mark as difficult
+                  </button>
+                )}
+
+                {showAnswer && studyMode !== "known" && (
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       className="rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700"
@@ -1162,10 +1594,17 @@ export default function Home() {
                   Practice all again
                 </button>
               </section>
+            ) : selectedDeck ? (
+              <section className="rounded-2xl bg-white p-6 text-center shadow">
+                <p className="text-gray-600">
+                  No cards in this mode. Try Practice, Today, Known, or upload
+                  more cards.
+                </p>
+              </section>
             ) : (
               <section className="rounded-2xl bg-white p-6 text-center shadow">
                 <p className="text-gray-600">
-                  Upload a file below to create your first list.
+                  Upload a file below or add your first word manually.
                 </p>
               </section>
             )}
@@ -1195,7 +1634,7 @@ export default function Home() {
                 </section>
 
                 <p className="mt-2 text-center text-xs text-gray-500">
-                  Known cards are hidden from normal practice.
+                  Known cards are hidden from Practice and Today.
                 </p>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
@@ -1207,15 +1646,11 @@ export default function Home() {
                   </button>
 
                   <button
-                    className={`rounded-xl px-3 py-2 text-sm font-semibold shadow ${
-                      showDifficultOnly
-                        ? "bg-orange-500 text-white"
-                        : "bg-white text-orange-600"
-                    }`}
-                    onClick={toggleDifficultMode}
-                    disabled={stats.difficult === 0 && !showDifficultOnly}
+                    className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow"
+                    onClick={resetKnownCards}
+                    disabled={stats.known === 0}
                   >
-                    Difficult
+                    Reset known
                   </button>
 
                   <button
@@ -1226,12 +1661,12 @@ export default function Home() {
                   </button>
                 </div>
 
-                {stats.known > 0 && (
+                {stats.difficult > 0 && (
                   <button
-                    className="mt-2 w-full rounded-xl bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-700 shadow"
-                    onClick={resetKnownCards}
+                    className="mt-2 w-full rounded-xl bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700 shadow"
+                    onClick={resetReviewSchedule}
                   >
-                    Practice known cards again
+                    Reset difficult schedule
                   </button>
                 )}
               </>
@@ -1269,6 +1704,63 @@ export default function Home() {
                       </select>
                     </label>
                   )}
+
+                  <div className="rounded-xl bg-gray-50 p-3">
+                    <p className="mb-3 font-semibold">Add your own word</p>
+
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                        placeholder="Dutch word or phrase"
+                        value={manualDutch}
+                        onChange={(event) => setManualDutch(event.target.value)}
+                      />
+
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                        placeholder="English meaning"
+                        value={manualEnglish}
+                        onChange={(event) =>
+                          setManualEnglish(event.target.value)
+                        }
+                      />
+
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                        placeholder="Type, e.g. Verb, Noun, Phrase"
+                        value={manualType}
+                        onChange={(event) => setManualType(event.target.value)}
+                      />
+
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                        placeholder="Topic, e.g. Doctor, Work, Exam"
+                        value={manualTopic}
+                        onChange={(event) => setManualTopic(event.target.value)}
+                      />
+
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                        placeholder="Exam skill, e.g. Speaking, Writing"
+                        value={manualExamSkill}
+                        onChange={(event) =>
+                          setManualExamSkill(event.target.value)
+                        }
+                      />
+
+                      <button
+                        className="w-full rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
+                        onClick={addManualCard}
+                      >
+                        Add card
+                      </button>
+                    </div>
+                  </div>
 
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium">
@@ -1447,6 +1939,12 @@ export default function Home() {
               <section className="mt-4 rounded-2xl bg-white p-4 shadow">
                 <p className="mb-2 text-sm font-medium">Now playing</p>
 
+                {currentAudioLesson && (
+                  <p className="mb-3 text-sm text-gray-600">
+                    {currentAudioLesson.title}
+                  </p>
+                )}
+
                 <audio
                   ref={audioRef}
                   controls
@@ -1455,6 +1953,22 @@ export default function Home() {
                   onPause={() => setIsAudioPlaying(false)}
                   onEnded={() => setIsAudioPlaying(false)}
                 />
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
+                    onClick={() => playRelativeAudioLesson("previous")}
+                  >
+                    ← Previous audio
+                  </button>
+
+                  <button
+                    className="rounded-xl bg-gray-900 px-4 py-3 font-semibold text-white"
+                    onClick={() => playRelativeAudioLesson("next")}
+                  >
+                    Next audio →
+                  </button>
+                </div>
               </section>
             )}
 
@@ -1466,7 +1980,7 @@ export default function Home() {
                   </p>
                 </div>
               ) : (
-                sortAudioLessons(audioLessons).map((lesson) => (
+                sortedAudioLessons.map((lesson) => (
                   <div
                     key={lesson.id}
                     className="rounded-2xl bg-white p-4 shadow"
@@ -1515,7 +2029,7 @@ export default function Home() {
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <button
                         className="rounded-xl bg-gray-900 px-3 py-3 text-sm font-semibold text-white"
-                        onClick={() => playAudioLesson(lesson)}
+                        onClick={() => void playAudioLesson(lesson)}
                       >
                         {currentAudioLessonId === lesson.id && isAudioPlaying
                           ? "Pause"
