@@ -16,6 +16,8 @@ type Flashcard = {
   reviewCount?: number;
   nextReviewDate?: string;
   lastReviewedDate?: string;
+  ease?: number;
+  intervalDays?: number;
 };
 
 type Deck = {
@@ -35,13 +37,14 @@ type AudioLesson = {
 };
 
 type StudyMode = "practice" | "today" | "difficult" | "known";
+type ReviewRating = "again" | "hard" | "good" | "easy";
 
 const STORAGE_KEY = "dutch-english-flashcard-decks";
 const AUDIO_LESSONS_KEY = "dutch-listening-lessons";
 const DAILY_LIMIT_KEY = "dutch-daily-card-limit";
 const AUDIO_DB_NAME = "dutch-listening-audio-db";
 const AUDIO_STORE_NAME = "audio-files";
-const REVIEW_INTERVALS = [1, 3, 7, 14, 30];
+const DEFAULT_EASE = 2.5;
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -66,11 +69,6 @@ function isDueToday(card: Flashcard) {
   return card.nextReviewDate <= getTodayKey();
 }
 
-function getNextReviewInterval(reviewCount: number) {
-  const index = Math.min(reviewCount, REVIEW_INTERVALS.length - 1);
-  return REVIEW_INTERVALS[index];
-}
-
 function hashString(value: string) {
   let hash = 0;
 
@@ -83,11 +81,17 @@ function hashString(value: string) {
 }
 
 function getDailyCards(cards: Flashcard[], limit: string) {
-  const dueCards = cards.filter((card) => card.difficult && isDueToday(card));
-  const dueIds = new Set(dueCards.map((card) => card.id));
-  const nonDueCards = cards.filter((card) => !dueIds.has(card.id));
+  const dueCards = cards.filter(
+    (card) => card.nextReviewDate && isDueToday(card)
+  );
 
-  const sortedCards = [...nonDueCards].sort((a, b) => {
+  const dueIds = new Set(dueCards.map((card) => card.id));
+
+  const newCards = cards.filter(
+    (card) => !dueIds.has(card.id) && !card.nextReviewDate
+  );
+
+  const sortedNewCards = [...newCards].sort((a, b) => {
     const seed = getTodayKey();
 
     return (
@@ -97,7 +101,7 @@ function getDailyCards(cards: Flashcard[], limit: string) {
   });
 
   if (limit === "all") {
-    return [...dueCards, ...sortedCards];
+    return [...dueCards, ...sortedNewCards];
   }
 
   const parsedLimit = Number(limit);
@@ -106,7 +110,7 @@ function getDailyCards(cards: Flashcard[], limit: string) {
 
   const remainingSlots = Math.max(safeLimit - dueCards.length, 0);
 
-  return [...dueCards, ...sortedCards.slice(0, remainingSlots)];
+  return [...dueCards, ...sortedNewCards.slice(0, remainingSlots)];
 }
 
 function getLessonSortParts(title: string) {
@@ -200,6 +204,8 @@ function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
       reviewCount: Number(card.reviewCount || 0),
       nextReviewDate: String(card.nextReviewDate || "").trim(),
       lastReviewedDate: String(card.lastReviewedDate || "").trim(),
+      ease: Number(card.ease || DEFAULT_EASE),
+      intervalDays: Number(card.intervalDays || 0),
     }));
 }
 
@@ -411,10 +417,16 @@ export default function Home() {
 
   const stats = useMemo(() => {
     const known = selectedCards.filter((card) => card.known).length;
-    const difficult = selectedCards.filter((card) => card.difficult).length;
     const due = selectedCards.filter(
-      (card) => !card.known && card.difficult && isDueToday(card)
+      (card) => !card.known && card.nextReviewDate && isDueToday(card)
     ).length;
+    const scheduled = selectedCards.filter(
+      (card) => !card.known && card.nextReviewDate && !isDueToday(card)
+    ).length;
+    const newCards = selectedCards.filter(
+      (card) => !card.known && !card.nextReviewDate
+    ).length;
+    const difficult = selectedCards.filter((card) => card.difficult).length;
 
     return {
       total: selectedCards.length,
@@ -422,6 +434,8 @@ export default function Home() {
       learning: selectedCards.length - known,
       difficult,
       due,
+      scheduled,
+      newCards,
     };
   }, [selectedCards]);
 
@@ -647,6 +661,8 @@ export default function Home() {
           reviewCount: 0,
           nextReviewDate: "",
           lastReviewedDate: "",
+          ease: DEFAULT_EASE,
+          intervalDays: 0,
         };
       })
       .filter((card) => card.dutch && card.english);
@@ -726,6 +742,8 @@ export default function Home() {
       reviewCount: 0,
       nextReviewDate: "",
       lastReviewedDate: "",
+      ease: DEFAULT_EASE,
+      intervalDays: 0,
     };
 
     if (selectedDeck) {
@@ -772,8 +790,50 @@ export default function Home() {
     });
   }
 
-  function markCard(known: boolean) {
+  function reviewCurrentCard(rating: ReviewRating) {
     if (!currentCard) return;
+
+    const currentInterval = Number(currentCard.intervalDays || 0);
+    const currentEase = Number(currentCard.ease || DEFAULT_EASE);
+    const currentReviewCount = Number(currentCard.reviewCount || 0);
+
+    let intervalDays = 1;
+    let ease = currentEase;
+    let known = false;
+    let difficult = currentCard.difficult;
+
+    if (rating === "again") {
+      intervalDays = 1;
+      ease = Math.max(1.3, currentEase - 0.2);
+      difficult = true;
+    }
+
+    if (rating === "hard") {
+      intervalDays =
+        currentInterval > 0
+          ? Math.max(2, Math.round(currentInterval * 1.2))
+          : 3;
+      ease = Math.max(1.3, currentEase - 0.15);
+      difficult = true;
+    }
+
+    if (rating === "good") {
+      intervalDays =
+        currentInterval > 0
+          ? Math.max(3, Math.round(currentInterval * ease))
+          : 7;
+      difficult = false;
+    }
+
+    if (rating === "easy") {
+      intervalDays =
+        currentInterval > 0
+          ? Math.max(7, Math.round(currentInterval * (ease + 0.5)))
+          : 14;
+      ease = currentEase + 0.15;
+      difficult = false;
+      known = true;
+    }
 
     updateSelectedDeckCards((cards) =>
       cards.map((card) =>
@@ -781,44 +841,26 @@ export default function Home() {
           ? {
               ...card,
               known,
-              difficult: known ? false : card.difficult,
-              nextReviewDate: known ? "" : card.nextReviewDate,
+              difficult,
+              ease,
+              intervalDays,
+              reviewCount: currentReviewCount + 1,
               lastReviewedDate: getTodayKey(),
+              nextReviewDate: known ? "" : addDaysToToday(intervalDays),
             }
           : card
       )
+    );
+
+    setMessage(
+      known ? "Marked as known." : `Next review in ${intervalDays} day(s).`
     );
 
     goToNextCard();
   }
 
   function scheduleCurrentCardAsDifficult() {
-    if (!currentCard) return;
-
-    const currentReviewCount = Number(currentCard.reviewCount || 0);
-    const intervalDays = getNextReviewInterval(currentReviewCount);
-    const nextReviewDate = addDaysToToday(intervalDays);
-
-    updateSelectedDeckCards((cards) =>
-      cards.map((card) =>
-        card.id === currentCard.id
-          ? {
-              ...card,
-              difficult: true,
-              known: false,
-              reviewCount: currentReviewCount + 1,
-              lastReviewedDate: getTodayKey(),
-              nextReviewDate,
-            }
-          : card
-      )
-    );
-
-    setMessage(`Marked difficult. It will return on ${nextReviewDate}.`);
-
-    if (studyMode === "difficult") {
-      setCurrentIndex(0);
-    }
+    reviewCurrentCard("again");
   }
 
   function removeCurrentCardFromKnown() {
@@ -826,7 +868,13 @@ export default function Home() {
 
     updateSelectedDeckCards((cards) =>
       cards.map((card) =>
-        card.id === currentCard.id ? { ...card, known: false } : card
+        card.id === currentCard.id
+          ? {
+              ...card,
+              known: false,
+              nextReviewDate: "",
+            }
+          : card
       )
     );
 
@@ -887,14 +935,12 @@ export default function Home() {
           ? {
               ...card,
               difficult: false,
-              nextReviewDate: "",
-              reviewCount: 0,
             }
           : card
       )
     );
 
-    setMessage("Removed from difficult cards.");
+    setMessage("Removed from hard cards.");
 
     if (studyMode === "difficult") {
       setCurrentIndex(0);
@@ -951,6 +997,8 @@ export default function Home() {
         reviewCount: 0,
         nextReviewDate: "",
         lastReviewedDate: "",
+        ease: DEFAULT_EASE,
+        intervalDays: 0,
       }))
     );
 
@@ -1160,19 +1208,23 @@ export default function Home() {
   function playRelativeAudioLesson(direction: "previous" | "next") {
     if (sortedAudioLessons.length === 0) return;
 
-    const currentIndex = sortedAudioLessons.findIndex(
+    const currentAudioIndex = sortedAudioLessons.findIndex(
       (lesson) => lesson.id === currentAudioLessonId
     );
 
     let nextIndex = 0;
 
-    if (currentIndex >= 0) {
+    if (currentAudioIndex >= 0) {
       if (direction === "previous") {
         nextIndex =
-          currentIndex === 0 ? sortedAudioLessons.length - 1 : currentIndex - 1;
+          currentAudioIndex === 0
+            ? sortedAudioLessons.length - 1
+            : currentAudioIndex - 1;
       } else {
         nextIndex =
-          currentIndex === sortedAudioLessons.length - 1 ? 0 : currentIndex + 1;
+          currentAudioIndex === sortedAudioLessons.length - 1
+            ? 0
+            : currentAudioIndex + 1;
       }
     }
 
@@ -1359,7 +1411,7 @@ export default function Home() {
                 {studyMode === "today" && (
                   <label className="mt-3 block">
                     <span className="mb-1 block text-xs font-medium text-gray-500">
-                      Cards today. Due difficult cards are always included.
+                      Cards today. Due review cards are shown first.
                     </span>
 
                     <select
@@ -1375,14 +1427,14 @@ export default function Home() {
                       <option value="20">20 cards</option>
                       <option value="30">30 cards</option>
                       <option value="50">50 cards</option>
-                      <option value="all">All unknown cards</option>
+                      <option value="all">All due + new cards</option>
                     </select>
                   </label>
                 )}
 
                 {stats.due > 0 && (
                   <p className="mt-2 rounded-lg bg-orange-50 p-2 text-xs text-orange-700">
-                    {stats.due} difficult card(s) due for review today.
+                    {stats.due} card(s) due for review today.
                   </p>
                 )}
               </section>
@@ -1396,7 +1448,7 @@ export default function Home() {
                       {studyMode === "today"
                         ? "Today"
                         : studyMode === "difficult"
-                        ? "Difficult"
+                        ? "Hard"
                         : studyMode === "known"
                         ? "Known"
                         : "Card"}{" "}
@@ -1454,13 +1506,23 @@ export default function Home() {
                     <div className="mb-4 flex flex-wrap justify-center gap-2">
                       {currentCard.difficult && (
                         <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
-                          Difficult
+                          Hard
                         </span>
                       )}
 
                       {currentCard.nextReviewDate && !currentCard.known && (
                         <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-700">
                           Review: {currentCard.nextReviewDate}
+                        </span>
+                      )}
+
+                      {currentCard.reviewCount ? (
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                          Reviews: {currentCard.reviewCount}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                          New
                         </span>
                       )}
 
@@ -1538,44 +1600,42 @@ export default function Home() {
                     Move back to practice
                   </button>
                 ) : currentCard.difficult ? (
-                  <div className="mb-3 grid grid-cols-2 gap-2">
-                    <button
-                      className="rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white"
-                      onClick={scheduleCurrentCardAsDifficult}
-                    >
-                      Still difficult
-                    </button>
-
-                    <button
-                      className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
-                      onClick={removeDifficultFromCurrentCard}
-                    >
-                      Remove hard
-                    </button>
-                  </div>
-                ) : (
                   <button
-                    className="mb-3 w-full rounded-xl bg-orange-100 px-4 py-3 font-semibold text-orange-700"
-                    onClick={scheduleCurrentCardAsDifficult}
+                    className="mb-3 w-full rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
+                    onClick={removeDifficultFromCurrentCard}
                   >
-                    Mark as difficult
+                    Remove hard flag
                   </button>
-                )}
+                ) : null}
 
                 {showAnswer && studyMode !== "known" && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-4 gap-2">
                     <button
-                      className="rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700"
-                      onClick={() => markCard(false)}
+                      className="rounded-xl bg-red-100 px-2 py-3 text-sm font-semibold text-red-700"
+                      onClick={() => reviewCurrentCard("again")}
                     >
                       Again
                     </button>
 
                     <button
-                      className="rounded-xl bg-green-100 px-4 py-3 font-semibold text-green-700"
-                      onClick={() => markCard(true)}
+                      className="rounded-xl bg-orange-100 px-2 py-3 text-sm font-semibold text-orange-700"
+                      onClick={() => reviewCurrentCard("hard")}
                     >
-                      I know this
+                      Hard
+                    </button>
+
+                    <button
+                      className="rounded-xl bg-blue-100 px-2 py-3 text-sm font-semibold text-blue-700"
+                      onClick={() => reviewCurrentCard("good")}
+                    >
+                      Good
+                    </button>
+
+                    <button
+                      className="rounded-xl bg-green-100 px-2 py-3 text-sm font-semibold text-green-700"
+                      onClick={() => reviewCurrentCard("easy")}
+                    >
+                      Easy
                     </button>
                   </div>
                 )}
@@ -1618,23 +1678,23 @@ export default function Home() {
                   </div>
 
                   <div className="rounded-xl bg-white p-2 text-center shadow">
+                    <p className="text-xl font-bold">{stats.due}</p>
+                    <p className="text-xs text-gray-500">Due</p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-2 text-center shadow">
+                    <p className="text-xl font-bold">{stats.newCards}</p>
+                    <p className="text-xs text-gray-500">New</p>
+                  </div>
+
+                  <div className="rounded-xl bg-white p-2 text-center shadow">
                     <p className="text-xl font-bold">{stats.known}</p>
                     <p className="text-xs text-gray-500">Known</p>
-                  </div>
-
-                  <div className="rounded-xl bg-white p-2 text-center shadow">
-                    <p className="text-xl font-bold">{stats.learning}</p>
-                    <p className="text-xs text-gray-500">Learn</p>
-                  </div>
-
-                  <div className="rounded-xl bg-white p-2 text-center shadow">
-                    <p className="text-xl font-bold">{stats.difficult}</p>
-                    <p className="text-xs text-gray-500">Hard</p>
                   </div>
                 </section>
 
                 <p className="mt-2 text-center text-xs text-gray-500">
-                  Known cards are hidden from Practice and Today.
+                  Today shows due cards first, then new cards.
                 </p>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
@@ -1661,12 +1721,12 @@ export default function Home() {
                   </button>
                 </div>
 
-                {stats.difficult > 0 && (
+                {(stats.difficult > 0 || stats.scheduled > 0) && (
                   <button
                     className="mt-2 w-full rounded-xl bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700 shadow"
                     onClick={resetReviewSchedule}
                   >
-                    Reset difficult schedule
+                    Reset review schedule
                   </button>
                 )}
               </>
