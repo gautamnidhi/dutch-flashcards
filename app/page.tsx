@@ -859,10 +859,6 @@ export default function Home() {
     goToNextCard();
   }
 
-  function scheduleCurrentCardAsDifficult() {
-    reviewCurrentCard("again");
-  }
-
   function removeCurrentCardFromKnown() {
     if (!currentCard) return;
 
@@ -1211,6 +1207,18 @@ export default function Home() {
     const currentAudioIndex = sortedAudioLessons.findIndex(
       (lesson) => lesson.id === currentAudioLessonId
     );
+
+    if (direction === "next" && currentAudioLessonId) {
+      setAudioLessons((existingLessons) =>
+        sortAudioLessons(
+          existingLessons.map((lesson) =>
+            lesson.id === currentAudioLessonId
+              ? { ...lesson, done: true }
+              : lesson
+          )
+        )
+      );
+    }
 
     let nextIndex = 0;
 
