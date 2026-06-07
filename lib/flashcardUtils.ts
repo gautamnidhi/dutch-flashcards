@@ -5,223 +5,219 @@ export const DAILY_LIMIT_KEY = "dutch-daily-card-limit";
 export const DEFAULT_EASE = 2.5;
 
 export function createId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function shuffleCards(cards: Flashcard[]) {
-  return [...cards].sort(() => Math.random() - 0.5);
+    return [...cards].sort(() => Math.random() - 0.5);
 }
 
 export function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
 }
 
 export function addDaysToToday(days: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString().slice(0, 10);
 }
 
 export function isDueToday(card: Flashcard) {
-  if (!card.nextReviewDate) return false;
-  return card.nextReviewDate <= getTodayKey();
+    if (!card.nextReviewDate) return false;
+    return card.nextReviewDate <= getTodayKey();
 }
 
 export function hashString(value: string) {
-  let hash = 0;
+    let hash = 0;
 
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
+    for (let index = 0; index < value.length; index += 1) {
+        hash = (hash << 5) - hash + value.charCodeAt(index);
+        hash |= 0;
+    }
 
-  return Math.abs(hash);
+    return Math.abs(hash);
 }
 
 export function getTodayInitialCardIds(
-  cards: Flashcard[],
-  limit: string,
-  refreshSeed: string
+    cards: Flashcard[],
+    limit: string,
+    refreshSeed: string
 ) {
-  const newCards = cards.filter((card) => !card.known && !card.nextReviewDate);
+    const newCards = cards.filter((card) => !card.known && !card.nextReviewDate);
 
-  const dueCards = cards.filter(
-    (card) => !card.known && card.nextReviewDate && isDueToday(card)
-  );
-
-  const sortedNewCards = [...newCards].sort((a, b) => {
-    return (
-      hashString(`${refreshSeed}-${limit}-${a.id}-${a.dutch}`) -
-      hashString(`${refreshSeed}-${limit}-${b.id}-${b.dutch}`)
+    const dueCards = cards.filter(
+        (card) => !card.known && card.nextReviewDate && isDueToday(card)
     );
-  });
 
-  const sortedDueCards = [...dueCards].sort((a, b) => {
-    return (
-      hashString(`${refreshSeed}-due-${a.id}-${a.dutch}`) -
-      hashString(`${refreshSeed}-due-${b.id}-${b.dutch}`)
-    );
-  });
+    const sortedNewCards = [...newCards].sort((a, b) => {
+        return (
+            hashString(`${refreshSeed}-${limit}-${a.id}-${a.dutch}`) -
+            hashString(`${refreshSeed}-${limit}-${b.id}-${b.dutch}`)
+        );
+    });
 
-  const selectedNewCards =
-    limit === "all"
-      ? sortedNewCards
-      : sortedNewCards.slice(0, Number(limit) || 20);
+    const sortedDueCards = [...dueCards].sort((a, b) => {
+        return (
+            hashString(`${refreshSeed}-due-${a.id}-${a.dutch}`) -
+            hashString(`${refreshSeed}-due-${b.id}-${b.dutch}`)
+        );
+    });
 
-  return [...selectedNewCards, ...sortedDueCards].map((card) => card.id);
+    const selectedNewCards =
+        limit === "all"
+            ? sortedNewCards
+            : sortedNewCards.slice(0, Number(limit) || 20);
+
+    return [...selectedNewCards, ...sortedDueCards].map((card) => card.id);
 }
 
 export function speakDutch(text: string) {
-  if (typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
 
-  if (!("speechSynthesis" in window)) {
-    alert("Speech is not supported on this device.");
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-
-  const voices = window.speechSynthesis.getVoices();
-  const dutchVoice =
-    voices.find((voice) => voice.lang === "nl-NL") ||
-    voices.find((voice) => voice.lang.startsWith("nl"));
-
-  const words = text
-    .replace(/[.!?]/g, "")
-    .split(" ")
-    .filter(Boolean);
-
-  let index = 0;
-
-  function speakNextWord() {
-    if (index >= words.length) return;
-
-    const word = words[index];
-    const utterance = new SpeechSynthesisUtterance(word);
-
-    utterance.lang = "nl-NL";
-    utterance.rate = 0.45;
-    utterance.pitch = 1;
-
-    if (dutchVoice) {
-      utterance.voice = dutchVoice;
+    if (!("speechSynthesis" in window)) {
+        alert("Speech is not supported on this device.");
+        return;
     }
 
-    utterance.onend = () => {
-      index += 1;
-      setTimeout(speakNextWord, 300);
-    };
+    window.speechSynthesis.cancel();
 
-    window.speechSynthesis.speak(utterance);
-  }
+    const voices = window.speechSynthesis.getVoices();
+    const dutchVoice =
+        voices.find((voice) => voice.lang === "nl-NL") ||
+        voices.find((voice) => voice.lang.startsWith("nl"));
 
-  speakNextWord();
+    const words = text
+        .replace(/[.!?]/g, "")
+        .split(" ")
+        .filter(Boolean);
+
+    let index = 0;
+
+    function speakNextWord() {
+        if (index >= words.length) return;
+
+        const word = words[index];
+        const utterance = new SpeechSynthesisUtterance(word);
+
+        utterance.lang = "nl-NL";
+        utterance.rate = 0.45;
+        utterance.pitch = 1;
+
+        if (dutchVoice) {
+            utterance.voice = dutchVoice;
+        }
+
+        utterance.onend = () => {
+            index += 1;
+            setTimeout(speakNextWord, 300);
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    speakNextWord();
 }
 
 export function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
-  return cards
-    .filter((card) => card.dutch && card.english)
-    .map((card) => ({
-      id: card.id || createId(),
-      dutch: String(card.dutch || "").trim(),
-      english: String(card.english || "").trim(),
-      known: Boolean(card.known),
-      difficult: Boolean(card.difficult),
-      type: String(card.type || "").trim(),
-      topic: String(card.topic || "").trim(),
-      examSkill: String(card.examSkill || "").trim(),
-      reviewCount: Number(card.reviewCount || 0),
-      nextReviewDate: String(card.nextReviewDate || "").trim(),
-      lastReviewedDate: String(card.lastReviewedDate || "").trim(),
-      ease: Number(card.ease || DEFAULT_EASE),
-      intervalDays: Number(card.intervalDays || 0),
-    }));
+    return cards
+        .filter((card) => card.dutch && card.english)
+        .map((card) => ({
+            id: card.id || createId(),
+            dutch: String(card.dutch || "").trim(),
+            english: String(card.english || "").trim(),
+            known: Boolean(card.known),
+            difficult: Boolean(card.difficult),
+            type: String(card.type || "").trim(),
+            topic: String(card.topic || "").trim(),
+            examSkill: String(card.examSkill || "").trim(),
+            reviewCount: Number(card.reviewCount || 0),
+            nextReviewDate: String(card.nextReviewDate || "").trim(),
+            lastReviewedDate: String(card.lastReviewedDate || "").trim(),
+            ease: Number(card.ease || DEFAULT_EASE),
+            intervalDays: Number(card.intervalDays || 0),
+        }));
 }
 
 export function normalizeSavedDecks(decks: Partial<Deck>[]): Deck[] {
-  return decks
-    .filter((deck) => deck.name && Array.isArray(deck.cards))
-    .map((deck) => ({
-      id: deck.id || createId(),
-      name: String(deck.name || "Untitled list").trim(),
-      cards: normalizeSavedCards(deck.cards || []),
-      createdAt: deck.createdAt || new Date().toISOString(),
-    }))
-    .filter((deck) => deck.cards.length > 0);
+    return decks
+        .filter((deck) => deck.name && Array.isArray(deck.cards))
+        .map((deck) => ({
+            id: deck.id || createId(),
+            name: String(deck.name || "Untitled list").trim(),
+            cards: normalizeSavedCards(deck.cards || []),
+            createdAt: deck.createdAt || new Date().toISOString(),
+        }))
+        .filter((deck) => deck.cards.length > 0);
 }
 
 export function rowsToCards(rows: Record<string, unknown>[]) {
-  return rows
-    .map((row) => {
-      const normalizedRow: Record<string, string> = {};
+    return rows
+        .map((row) => {
+            const normalizedRow: Record<string, string> = {};
 
-      Object.entries(row).forEach(([key, value]) => {
-        const cleanKey = key
-          .replace(/^\uFEFF/, "")
-          .trim()
-          .toLowerCase();
+            Object.entries(row).forEach(([key, value]) => {
+                const cleanKey = key.replace(/^\uFEFF/, "").trim().toLowerCase();
+                normalizedRow[cleanKey] = String(value ?? "").trim();
+            });
 
-        normalizedRow[cleanKey] = String(value ?? "").trim();
-      });
+            const values = Object.values(normalizedRow);
 
-      const values = Object.values(normalizedRow);
+            const dutch =
+                normalizedRow["dutch"] ||
+                normalizedRow["nederlands"] ||
+                normalizedRow["nl"] ||
+                normalizedRow["word"] ||
+                normalizedRow["front"] ||
+                normalizedRow["question"] ||
+                values[0] ||
+                "";
 
-      const dutch =
-        normalizedRow["dutch"] ||
-        normalizedRow["nederlands"] ||
-        normalizedRow["nl"] ||
-        normalizedRow["word"] ||
-        normalizedRow["front"] ||
-        normalizedRow["question"] ||
-        values[0] ||
-        "";
+            const english =
+                normalizedRow["english"] ||
+                normalizedRow["engels"] ||
+                normalizedRow["en"] ||
+                normalizedRow["translation"] ||
+                normalizedRow["meaning"] ||
+                normalizedRow["back"] ||
+                normalizedRow["answer"] ||
+                values[1] ||
+                "";
 
-      const english =
-        normalizedRow["english"] ||
-        normalizedRow["engels"] ||
-        normalizedRow["en"] ||
-        normalizedRow["translation"] ||
-        normalizedRow["meaning"] ||
-        normalizedRow["back"] ||
-        normalizedRow["answer"] ||
-        values[1] ||
-        "";
+            const type =
+                normalizedRow["type"] ||
+                normalizedRow["part of speech"] ||
+                normalizedRow["partofspeech"] ||
+                normalizedRow["word type"] ||
+                normalizedRow["category"] ||
+                "";
 
-      const type =
-        normalizedRow["type"] ||
-        normalizedRow["part of speech"] ||
-        normalizedRow["partofspeech"] ||
-        normalizedRow["word type"] ||
-        normalizedRow["category"] ||
-        "";
+            const topic =
+                normalizedRow["topic"] ||
+                normalizedRow["theme"] ||
+                normalizedRow["subject"] ||
+                "";
 
-      const topic =
-        normalizedRow["topic"] ||
-        normalizedRow["theme"] ||
-        normalizedRow["subject"] ||
-        "";
+            const examSkill =
+                normalizedRow["examskill"] ||
+                normalizedRow["exam skill"] ||
+                normalizedRow["skill"] ||
+                "";
 
-      const examSkill =
-        normalizedRow["examskill"] ||
-        normalizedRow["exam skill"] ||
-        normalizedRow["skill"] ||
-        "";
-
-      return {
-        id: createId(),
-        dutch: dutch.trim(),
-        english: english.trim(),
-        known: false,
-        difficult: false,
-        type: type.trim(),
-        topic: topic.trim(),
-        examSkill: examSkill.trim(),
-        reviewCount: 0,
-        nextReviewDate: "",
-        lastReviewedDate: "",
-        ease: DEFAULT_EASE,
-        intervalDays: 0,
-      };
-    })
-    .filter((card) => card.dutch && card.english);
+            return {
+                id: createId(),
+                dutch: dutch.trim(),
+                english: english.trim(),
+                known: false,
+                difficult: false,
+                type: type.trim(),
+                topic: topic.trim(),
+                examSkill: examSkill.trim(),
+                reviewCount: 0,
+                nextReviewDate: "",
+                lastReviewedDate: "",
+                ease: DEFAULT_EASE,
+                intervalDays: 0,
+            };
+        })
+        .filter((card) => card.dutch && card.english);
 }
