@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import FlashcardsSection from "../components/FlashcardsSection";
-import ListeningSection from "../components/ListeningSection";
+import ListeningSection from "../components/ListeningSection2";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"flashcards" | "listening">(

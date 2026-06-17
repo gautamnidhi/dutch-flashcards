@@ -12,8 +12,6 @@ import {
 } from "../lib/audioUtils";
 import { createId } from "../lib/flashcardUtils";
 
-const AUDIO_PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
-
 export default function ListeningSection() {
   const [audioLessons, setAudioLessons] = useState<AudioLesson[]>([]);
   const [audioMessage, setAudioMessage] = useState("");
@@ -21,7 +19,6 @@ export default function ListeningSection() {
   const [currentAudioLessonId, setCurrentAudioLessonId] = useState("");
   const [currentAudioUrl, setCurrentAudioUrl] = useState("");
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [audioPlaybackRate, setAudioPlaybackRate] = useState(1);
   const [audioTouchStartX, setAudioTouchStartX] = useState<number | null>(null);
   const [audioTouchEndX, setAudioTouchEndX] = useState<number | null>(null);
 
@@ -52,12 +49,6 @@ export default function ListeningSection() {
       }
     };
   }, [currentAudioUrl]);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = audioPlaybackRate;
-    }
-  }, [audioPlaybackRate]);
 
   const sortedAudioLessons = useMemo(() => {
     return sortAudioLessons(audioLessons);
@@ -181,7 +172,6 @@ export default function ListeningSection() {
       if (currentAudioLessonId === lesson.id && audioElement) {
         if (audioElement.paused) {
           try {
-            audioElement.playbackRate = audioPlaybackRate;
             await audioElement.play();
 
             if (audioPlayRequestRef.current === requestId) {
@@ -241,7 +231,6 @@ export default function ListeningSection() {
 
         try {
           freshAudioElement.src = url;
-          freshAudioElement.playbackRate = audioPlaybackRate;
           freshAudioElement.load();
 
           await freshAudioElement.play();
@@ -488,37 +477,10 @@ export default function ListeningSection() {
             ref={audioRef}
             controls
             className="w-full"
-            onLoadedMetadata={(event) => {
-              event.currentTarget.playbackRate = audioPlaybackRate;
-            }}
             onPlay={() => setIsAudioPlaying(true)}
             onPause={() => setIsAudioPlaying(false)}
             onEnded={() => setIsAudioPlaying(false)}
           />
-
-          <div className="mt-3">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="font-medium">Audio speed</span>
-              <span className="text-gray-500">{audioPlaybackRate}x</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {AUDIO_PLAYBACK_RATES.map((rate) => (
-                <button
-                  key={rate}
-                  type="button"
-                  className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                    audioPlaybackRate === rate
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-700"
-                  }`}
-                  onClick={() => setAudioPlaybackRate(rate)}
-                >
-                  {rate}x
-                </button>
-              ))}
-            </div>
-          </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
