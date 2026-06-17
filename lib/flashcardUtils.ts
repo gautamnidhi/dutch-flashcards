@@ -146,8 +146,7 @@ export function normalizeSavedDecks(decks: Partial<Deck>[]): Deck[] {
             name: String(deck.name || "Untitled list").trim(),
             cards: normalizeSavedCards(deck.cards || []),
             createdAt: deck.createdAt || new Date().toISOString(),
-        }))
-        .filter((deck) => deck.cards.length > 0);
+        })); // <-- Removed the filter that deleted empty lists!
 }
 
 export function rowsToCards(rows: Record<string, unknown>[]) {
