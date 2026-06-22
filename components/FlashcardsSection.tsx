@@ -663,6 +663,7 @@ export default function FlashcardsSection() {
     goToNextCard();
   }
 
+  // Touch handlers
   function handleCardSwipe() {
     if (touchStartX === null || touchEndX === null) return;
 
@@ -734,7 +735,32 @@ export default function FlashcardsSection() {
     updateSelectedDeckCards((cards) => shuffleCards(cards));
     setCurrentIndex(0);
     setShowAnswer(false);
-    setMessage("Current list shuffled.");
+    setMessage("Current list shuffled (Numbers remained sequential).");
+  }
+
+  function resetAndShuffleCurrentDeck() {
+    if (!selectedDeck) return;
+
+    updateSelectedDeckCards((cards) => {
+      // 1. Reset metrics for all cards
+      const resetCards = cards.map((card) => ({
+        ...card,
+        known: false,
+        difficult: false,
+        reviewCount: 0,
+        nextReviewDate: "",
+        lastReviewedDate: "",
+        ease: DEFAULT_EASE,
+        intervalDays: 0,
+      }));
+
+      // 2. Use our smart shuffle function
+      return shuffleCards(resetCards);
+    });
+
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setMessage("Deck progress reset! Vocabulary shuffled, numbers remained sequential.");
   }
 
   function deleteCurrentDeck() {
@@ -1170,14 +1196,23 @@ export default function FlashcardsSection() {
                 Hard, Good, and Easy finish it for today.
               </p>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
-                    className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow"
+                    className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow hover:bg-gray-50"
                     onClick={reshuffleCurrentDeck}
                 >
-                  Shuffle
+                  Just Shuffle
                 </button>
 
+                <button
+                    className="rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow hover:bg-blue-100"
+                    onClick={resetAndShuffleCurrentDeck}
+                >
+                  Reset & Smart Shuffle 🔄
+                </button>
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
                     className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow"
                     onClick={resetKnownCards}

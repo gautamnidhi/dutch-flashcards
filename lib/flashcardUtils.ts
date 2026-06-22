@@ -9,7 +9,33 @@ export function createId() {
 }
 
 export function shuffleCards(cards: Flashcard[]) {
-    return [...cards].sort(() => Math.random() - 0.5);
+    // 1. Helper to safely detect if a card is a number string
+    const isNumberCard = (card: Flashcard) => {
+        const type = (card.type || "").toLowerCase();
+        const topic = (card.topic || "").toLowerCase();
+        return type.includes("number") || topic.includes("number") || type.includes("getal");
+    };
+
+    // 2. Isolate only the shuffleable cards (non-numbers)
+    const shuffleableCards = cards.filter(card => !isNumberCard(card));
+
+    // 3. Shuffle the isolated pool using the Fisher-Yates algorithm
+    const shuffledPool = [...shuffleableCards];
+    for (let i = shuffledPool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPool[i], shuffledPool[j]] = [shuffledPool[j], shuffledPool[i]];
+    }
+
+    // 4. Map back onto the original slots: insert numbers unchanged, pull vocabulary from shuffled pool
+    let shuffledIndex = 0;
+    return cards.map((originalCard) => {
+        if (isNumberCard(originalCard)) {
+            return originalCard; // Lock number cards exactly where they belong chronologically
+        }
+        const nextShuffledCard = shuffledPool[shuffledIndex];
+        shuffledIndex += 1;
+        return nextShuffledCard;
+    });
 }
 
 export function getTodayKey() {
