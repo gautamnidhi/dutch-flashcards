@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Deck, Flashcard } from "../lib/types";
 import { createId, speakDutch, STORAGE_KEY } from "../lib/flashcardUtils";
 
+let cachedDutchDictionary: Set<string> | null = null;
+
 export default function TranslateSection() {
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
@@ -16,6 +18,7 @@ export default function TranslateSection() {
 
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState("");
+  const [dutchDictionary, setDutchDictionary] = useState<Set<string> | null>(() => cachedDutchDictionary);
 
   // Alternating speech rate state
   const [lastSpeechText, setLastSpeechText] = useState("");
@@ -40,6 +43,29 @@ export default function TranslateSection() {
     if (savedSpeechRate) {
       setSpeechRate(parseFloat(savedSpeechRate));
     }
+  }, []);
+
+  useEffect(() => {
+    if (cachedDutchDictionary) {
+      setDutchDictionary(cachedDutchDictionary);
+      return;
+    }
+
+    const loadDictionary = async () => {
+      try {
+        const res = await fetch("/dutch_dictionary.txt");
+        if (!res.ok) throw new Error("Failed to load dictionary");
+        const text = await res.text();
+        const words = text.split(/\r?\n/).filter(Boolean);
+        const dictSet = new Set(words);
+        cachedDutchDictionary = dictSet;
+        setDutchDictionary(dictSet);
+      } catch (err) {
+        console.error("Failed to fetch dictionary", err);
+      }
+    };
+
+    loadDictionary();
   }, []);
 
   const changeSpeechRate = (rate: number) => {
@@ -111,26 +137,10 @@ export default function TranslateSection() {
     handleTranslate();
   };
 
-  // Compile a list of all correctly spelled Dutch words from current decks
-  const allDutchWords = useMemo(() => {
-    const words = new Set<string>();
-    decks.forEach(deck => {
-      deck.cards.forEach(card => {
-        const tokens = card.dutch.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
-        tokens.forEach(t => {
-          if (t.length > 1) {
-            words.add(t);
-          }
-        });
-      });
-    });
-    return words;
-  }, [decks]);
-
-  // Check spelling on Dutch text (either input for nl-en, or output for en-nl)
+  // Check spelling on Dutch text against the actual Dutch dictionary
   const spellingErrors = useMemo(() => {
     const textToCheck = translationDirection === "nl-en" ? inputText : translatedText;
-    if (!textToCheck.trim() || allDutchWords.size === 0) return [];
+    if (!textToCheck.trim() || !dutchDictionary || dutchDictionary.size === 0) return [];
     
     const words = textToCheck.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").split(/\s+/).filter(Boolean);
     const errors: string[] = [];
@@ -139,21 +149,17 @@ export default function TranslateSection() {
       if (!isNaN(Number(word))) return;
       if (word.length <= 1) return;
       
-      const commonExclusions = [
-        "ik", "je", "ze", "we", "me", "u", "er", "te", "om", "en", "of", "de", "het", "een", "in", "op", "aan", "bij", "met", "van", "naar", "voor", "uit", "door", "over", "om", "na", "tot", "als", "dan", "dat", "die", "dit", "deze", "gene", "zulk", "zo", "hoe", "wat", "wie", "waar", "wanneer", "waarom", "omdat", "hoewel", "tenzij", "mits", "india", "nidhi", "nederlands", "engels", "english", "dutch",
-        // Common Dutch vocabulary words to exclude from spellcheck warning
-        "deel", "jaar", "dag", "tijd", "man", "vrouw", "kind", "naam", "land", "stad", "huis", "werk", "leven", "vriend", "moeder", "vader", "zoon", "dochter", "school", "boek", "hand", "oog", "hoofd", "weg", "water", "geld", "recht", "plaats", "week", "maand", "uur", "minuut", "seconde", "wereld", "groot", "klein", "nieuw", "oud", "goed", "slecht", "mooi", "leuk", "lang", "kort", "doen", "maken", "zeggen", "willen", "kunnen", "moeten", "zullen", "mogen", "laten", "zien", "horen", "denken", "weten", "vinden", "geven", "nemen", "houden", "komen", "gaan", "staan", "liggen", "zitten", "vragen", "antwoorden", "heet", "woon", "woont", "wonen"
-      ];
+      const commonExclusions = ["ik", "je", "ze", "we", "me", "u", "er", "te", "om", "en", "of", "de", "het", "een", "in", "op", "aan", "bij", "met", "van", "naar", "voor", "uit", "door", "over", "om", "na", "tot", "als", "dan", "dat", "die", "dit", "deze", "gene", "zulk", "zo", "hoe", "wat", "wie", "waar", "wanneer", "waarom", "omdat", "hoewel", "tenzij", "mits", "india", "nidhi", "nederlands", "engels", "english", "dutch"];
       
       if (commonExclusions.includes(word)) return;
       
-      if (!allDutchWords.has(word)) {
+      if (!dutchDictionary.has(word)) {
         errors.push(word);
       }
     });
     
     return [...new Set(errors)];
-  }, [inputText, translatedText, allDutchWords, translationDirection]);
+  }, [inputText, translatedText, dutchDictionary, translationDirection]);
 
   const existingDeckMatches = useMemo(() => {
     if (!finalDutch.trim()) return [];
@@ -289,12 +295,12 @@ export default function TranslateSection() {
 
           {/* Spelling Warnings */}
           {spellingErrors.length > 0 && (
-            <div className="rounded-xl bg-orange-50 border border-orange-200/60 p-3 text-sm text-orange-850 text-left animate-fade-in">
+            <div className="rounded-xl bg-orange-50 border border-orange-200/60 p-3 text-sm text-orange-855 text-left animate-fade-in animate-pulse-subtle">
               <p className="font-semibold flex items-center gap-1.5 text-orange-800">
                 ⚠️ Potential spelling mistake{spellingErrors.length > 1 ? "s" : ""}:
               </p>
               <p className="mt-1 text-xs text-orange-700 leading-relaxed">
-                The word{spellingErrors.length > 1 ? "s" : ""} <span className="font-semibold underline">{spellingErrors.map(w => `"${w}"`).join(", ")}</span> {spellingErrors.length > 1 ? "were" : "was"} not found in your loaded flashcard lists. Note: This spellchecker matches spelling against the Dutch words present in your imported flashcards.
+                The word{spellingErrors.length > 1 ? "s" : ""} <span className="font-semibold underline">{spellingErrors.map(w => `"${w}"`).join(", ")}</span> {spellingErrors.length > 1 ? "were" : "was"} not found in the Dutch dictionary. Please verify the spelling.
               </p>
             </div>
           )}
