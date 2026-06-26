@@ -6,6 +6,81 @@ import { createId, speakDutch, STORAGE_KEY } from "../lib/flashcardUtils";
 
 let cachedDutchDictionary: Set<string> | null = null;
 
+function getLevenshteinDistance(a: string, b: string): number {
+  const tmp: number[][] = [];
+  for (let i = 0; i <= b.length; i++) {
+    tmp[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    tmp[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        tmp[i][j] = tmp[i - 1][j - 1];
+      } else {
+        tmp[i][j] = Math.min(
+          tmp[i - 1][j - 1] + 1, // substitution
+          tmp[i][j - 1] + 1,     // insertion
+          tmp[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return tmp[b.length][a.length];
+}
+
+function getSpellingSuggestions(word: string, dictionary: Set<string>): string[] {
+  const results: { word: string; dist: number }[] = [];
+  const minLen = Math.max(1, word.length - 1);
+  const maxLen = word.length + 1;
+
+  for (const dictWord of dictionary) {
+    if (dictWord.length < minLen || dictWord.length > maxLen) continue;
+    
+    const dist = getLevenshteinDistance(word, dictWord);
+    if (dist <= 1) {
+      results.push({ word: dictWord, dist });
+    }
+  }
+
+  if (results.length < 3) {
+    const minLen2 = Math.max(1, word.length - 2);
+    const maxLen2 = word.length + 2;
+    for (const dictWord of dictionary) {
+      if (dictWord.length < minLen2 || dictWord.length > maxLen2) continue;
+      
+      const dist = getLevenshteinDistance(word, dictWord);
+      if (dist === 2) {
+        results.push({ word: dictWord, dist });
+      }
+    }
+  }
+
+  results.sort((a, b) => {
+    if (a.dist !== b.dist) return a.dist - b.dist;
+    
+    // Prioritize sharing first letter
+    const aFirstMatch = a.word[0] === word[0];
+    const bFirstMatch = b.word[0] === word[0];
+    if (aFirstMatch !== bFirstMatch) return aFirstMatch ? -1 : 1;
+    
+    return a.word.localeCompare(b.word);
+  });
+  
+  // Deduplicate results
+  const unique: { word: string; dist: number }[] = [];
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (!seen.has(r.word)) {
+      seen.add(r.word);
+      unique.push(r);
+    }
+  }
+  
+  return unique.slice(0, 3).map(r => r.word);
+}
+
 export default function TranslateSection() {
   const [inputText, setInputText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
@@ -139,10 +214,10 @@ export default function TranslateSection() {
 
   // Check spelling on Dutch text against the actual Dutch dictionary
   const spellingErrors = useMemo(() => {
-    const textToCheck = translationDirection === "nl-en" ? inputText : translatedText;
-    if (!textToCheck.trim() || !dutchDictionary || dutchDictionary.size === 0) return [];
+    if (translationDirection !== "nl-en") return [];
+    if (!finalDutch.trim() || !dutchDictionary || dutchDictionary.size === 0) return [];
     
-    const words = textToCheck.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").split(/\s+/).filter(Boolean);
+    const words = finalDutch.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").split(/\s+/).filter(Boolean);
     const errors: string[] = [];
     
     words.forEach(word => {
@@ -159,7 +234,7 @@ export default function TranslateSection() {
     });
     
     return [...new Set(errors)];
-  }, [inputText, translatedText, dutchDictionary, translationDirection]);
+  }, [finalDutch, dutchDictionary, translationDirection]);
 
   const existingDeckMatches = useMemo(() => {
     if (!finalDutch.trim()) return [];
@@ -210,6 +285,20 @@ export default function TranslateSection() {
     const deckName = decks.find((d) => d.id === targetDeckId)?.name || "selected";
     setSuccessMessage(`Added "${dutchWord}" to the "${deckName}" deck!`);
     setTimeout(() => setSuccessMessage(""), 4000);
+  };
+
+  const replaceInputWord = (oldWord: string, newWord: string) => {
+    const regex = new RegExp(`\\b${oldWord}\\b`, "gi");
+    setInputText((prev) => {
+      return prev.replace(regex, (match) => {
+        if (match[0] === match[0].toUpperCase()) {
+          return newWord.charAt(0).toUpperCase() + newWord.slice(1);
+        }
+        return newWord;
+      });
+    });
+    setFinalDutch("");
+    setTranslatedText("");
   };
 
   return (
@@ -295,13 +384,37 @@ export default function TranslateSection() {
 
           {/* Spelling Warnings */}
           {spellingErrors.length > 0 && (
-            <div className="rounded-xl bg-orange-50 border border-orange-200/60 p-3 text-sm text-orange-855 text-left animate-fade-in animate-pulse-subtle">
+            <div className="rounded-xl bg-orange-50 border border-orange-200/60 p-3 text-sm text-orange-855 text-left animate-fade-in animate-pulse-subtle flex flex-col gap-2">
               <p className="font-semibold flex items-center gap-1.5 text-orange-800">
                 ⚠️ Potential spelling mistake{spellingErrors.length > 1 ? "s" : ""}:
               </p>
-              <p className="mt-1 text-xs text-orange-700 leading-relaxed">
-                The word{spellingErrors.length > 1 ? "s" : ""} <span className="font-semibold underline">{spellingErrors.map(w => `"${w}"`).join(", ")}</span> {spellingErrors.length > 1 ? "were" : "was"} not found in the Dutch dictionary. Please verify the spelling.
-              </p>
+              <div className="text-xs text-orange-700 leading-relaxed flex flex-col gap-1.5">
+                {spellingErrors.map((word) => {
+                  const suggestions = dutchDictionary ? getSpellingSuggestions(word, dutchDictionary) : [];
+                  return (
+                    <div key={word}>
+                      The word <span className="font-semibold underline">"{word}"</span> was not found in the Dutch dictionary.
+                      {suggestions.length > 0 && (
+                        <span className="ml-1 text-orange-900 block sm:inline mt-0.5 sm:mt-0">
+                          Did you mean:{" "}
+                          {suggestions.map((s, idx) => (
+                            <span key={s}>
+                              <button
+                                type="button"
+                                className="font-bold text-orange-950 underline hover:text-orange-800 cursor-pointer inline-block bg-transparent border-none p-0 focus:outline-none"
+                                onClick={() => replaceInputWord(word, s)}
+                              >
+                                {s}
+                              </button>
+                              {idx < suggestions.length - 1 ? ", " : ""}
+                            </span>
+                          ))}?
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
