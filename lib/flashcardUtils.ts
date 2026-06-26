@@ -97,7 +97,7 @@ export function getTodayInitialCardIds(
     return [...selectedNewCards, ...sortedDueCards].map((card) => card.id);
 }
 
-export function speakDutch(text: string) {
+export function speakDutch(text: string, rate: number = 0.45) {
     if (typeof window === "undefined") return;
 
     if (!("speechSynthesis" in window)) {
@@ -118,6 +118,7 @@ export function speakDutch(text: string) {
         .filter(Boolean);
 
     let index = 0;
+    const gap = Math.max(50, Math.round(300 * (0.45 / rate)));
 
     function speakNextWord() {
         if (index >= words.length) return;
@@ -126,7 +127,7 @@ export function speakDutch(text: string) {
         const utterance = new SpeechSynthesisUtterance(word);
 
         utterance.lang = "nl-NL";
-        utterance.rate = 0.45;
+        utterance.rate = rate;
         utterance.pitch = 1;
 
         if (dutchVoice) {
@@ -135,7 +136,7 @@ export function speakDutch(text: string) {
 
         utterance.onend = () => {
             index += 1;
-            setTimeout(speakNextWord, 300);
+            setTimeout(speakNextWord, gap);
         };
 
         window.speechSynthesis.speak(utterance);

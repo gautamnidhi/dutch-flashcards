@@ -30,6 +30,9 @@ export default function FlashcardsSection() {
 
   const [studyMode, setStudyMode] = useState<StudyMode>("practice");
   const [dailyLimit, setDailyLimit] = useState("20");
+  const [speechRate, setSpeechRate] = useState<number>(0.6);
+  const [lastSpeechText, setLastSpeechText] = useState("");
+  const [useSlowSpeech, setUseSlowSpeech] = useState(false);
   const [todayRefreshSeed] = useState(() => createId());
   const [todayQueueIdsBySession, setTodayQueueIdsBySession] = useState<
       Record<string, string[]>
@@ -93,7 +96,33 @@ export default function FlashcardsSection() {
     if (savedDailyLimit) {
       setDailyLimit(savedDailyLimit);
     }
+
+    const savedSpeechRate = localStorage.getItem("speech_rate");
+    if (savedSpeechRate) {
+      setSpeechRate(parseFloat(savedSpeechRate));
+    }
   }, []);
+
+  const changeSpeechRate = (rate: number) => {
+    setSpeechRate(rate);
+    localStorage.setItem("speech_rate", String(rate));
+  };
+
+  const handleSpeakDutch = (text: string) => {
+    let speakSlow = false;
+    if (text === lastSpeechText) {
+      speakSlow = !useSlowSpeech;
+    }
+    setLastSpeechText(text);
+    setUseSlowSpeech(speakSlow);
+    speakDutch(text, speakSlow ? 0.4 : speechRate);
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUseSlowSpeech(false);
+    setLastSpeechText("");
+  }, [currentIndex, selectedDeckId]);
 
   // Save decks when state updates
   useEffect(() => {
@@ -1027,21 +1056,56 @@ export default function FlashcardsSection() {
                     <span
                         role="button"
                         tabIndex={0}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl text-blue-700 shadow active:scale-95"
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl shadow active:scale-95 transition-all duration-300 ${
+                            useSlowSpeech && currentCard.dutch === lastSpeechText
+                                ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                : "bg-blue-100 text-blue-700"
+                        }`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          speakDutch(currentCard.dutch);
+                          handleSpeakDutch(currentCard.dutch);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.stopPropagation();
-                            speakDutch(currentCard.dutch);
+                            handleSpeakDutch(currentCard.dutch);
                           }
                         }}
-                        aria-label="Hear Dutch pronunciation"
+                        aria-label={
+                          useSlowSpeech && currentCard.dutch === lastSpeechText
+                              ? "Hear slow Dutch pronunciation"
+                              : "Hear Dutch pronunciation"
+                        }
                     >
-                  🔊
-                </span>
+                      {useSlowSpeech && currentCard.dutch === lastSpeechText ? "🐢" : "🔊"}
+                    </span>
+                  </div>
+
+                  <div
+                      className="mt-3 flex items-center justify-center gap-1.5"
+                      onClick={(event) => event.stopPropagation()}
+                  >
+                    <span className="text-xs text-gray-500 mr-1">Speed:</span>
+                    {[0.4, 0.6, 0.8, 1.0].map((rate) => (
+                        <span
+                            key={rate}
+                            role="button"
+                            tabIndex={0}
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold cursor-pointer active:scale-95 select-none transition-colors ${
+                                speechRate === rate
+                                    ? "bg-blue-600 text-white shadow-sm"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
+                            onClick={() => changeSpeechRate(rate)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                changeSpeechRate(rate);
+                              }
+                            }}
+                        >
+                          {rate}x
+                        </span>
+                    ))}
                   </div>
 
                   {showAnswer ? (
