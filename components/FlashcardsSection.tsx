@@ -21,6 +21,54 @@ import {
 
 const DIFFICULT_LIST_NAME = "Difficult_words";
 
+function migrateRelationCards(decks: Deck[]): Deck[] {
+  const nlToEn: Record<string, string> = {};
+  
+  decks.forEach((deck) => {
+    deck.cards.forEach((card) => {
+      if (card.dutch && card.english && card.type !== "synonym" && card.type !== "antonym") {
+        const cleanDutch = card.dutch.toLowerCase().trim();
+        if (!nlToEn[cleanDutch]) {
+          nlToEn[cleanDutch] = card.english.trim();
+        }
+      }
+    });
+  });
+
+  decks.forEach((deck) => {
+    deck.cards.forEach((card) => {
+      if (card.dutch && card.examSkill && card.examSkill.startsWith("Meaning:")) {
+        const cleanDutch = card.dutch.toLowerCase().trim();
+        const meaningText = card.examSkill.replace("Meaning:", "").trim();
+        if (meaningText && !nlToEn[cleanDutch]) {
+          nlToEn[cleanDutch] = meaningText;
+        }
+      }
+    });
+  });
+
+  return decks.map((deck) => {
+    const updatedCards = deck.cards.map((card) => {
+      if ((card.type === "synonym" || card.type === "antonym") && !card.topic) {
+        const cleanRelated = card.english.toLowerCase().trim();
+        const relatedMeaning = nlToEn[cleanRelated];
+        if (relatedMeaning) {
+          return {
+            ...card,
+            topic: `Related Meaning: ${relatedMeaning}`,
+          };
+        }
+      }
+      return card;
+    });
+
+    return {
+      ...deck,
+      cards: updatedCards,
+    };
+  });
+}
+
 export default function FlashcardsSection() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -69,6 +117,7 @@ export default function FlashcardsSection() {
     if (savedDecks) {
       try {
         parsedDecks = normalizeSavedDecks(JSON.parse(savedDecks));
+        parsedDecks = migrateRelationCards(parsedDecks);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -1111,17 +1160,45 @@ export default function FlashcardsSection() {
                   {showAnswer ? (
                       <div className="mt-6 w-full border-t pt-5">
                         <p className="text-xs uppercase tracking-wide text-gray-500">
-                          English
+                          {currentCard.type === "synonym" || currentCard.type === "antonym" ? "Related Word (Dutch)" : "English"}
                         </p>
 
-                        <p className="mt-3 text-3xl font-semibold">
-                          {currentCard.english}
-                        </p>
+                        <div className="mt-3 flex items-center justify-center gap-3">
+                          <p className="text-3xl font-semibold">
+                            {currentCard.english}
+                          </p>
+                          {(currentCard.type === "synonym" || currentCard.type === "antonym") && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm shadow active:scale-95 transition-all duration-300 ${
+                                useSlowSpeech && currentCard.english === lastSpeechText
+                                  ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleSpeakDutch(currentCard.english);
+                              }}
+                              aria-label={
+                                useSlowSpeech && currentCard.english === lastSpeechText
+                                  ? "Hear slow pronunciation of related word"
+                                  : "Hear pronunciation of related word"
+                              }
+                            >
+                              {useSlowSpeech && currentCard.english === lastSpeechText ? "🐢" : "🔊"}
+                            </span>
+                          )}
+                        </div>
 
                         {currentCard.topic && (
-                            <p className="mt-3 text-sm text-gray-500">
-                              Topic: {currentCard.topic}
-                            </p>
+                          <div className="mt-2 text-sm text-gray-500">
+                            {currentCard.topic.startsWith("Related Meaning:") ? (
+                              <p className="italic">({currentCard.topic.replace("Related Meaning:", "").trim()})</p>
+                            ) : (
+                              <p>Topic: {currentCard.topic}</p>
+                            )}
+                          </div>
                         )}
                       </div>
                   ) : (

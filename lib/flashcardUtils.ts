@@ -1,4 +1,4 @@
-import type { Deck, Flashcard } from "./types";
+import type { Deck, Flashcard, WordRelation } from "./types";
 
 export const STORAGE_KEY = "dutch-english-flashcard-decks";
 export const DAILY_LIMIT_KEY = "dutch-daily-card-limit";
@@ -97,7 +97,12 @@ export function getTodayInitialCardIds(
     return [...selectedNewCards, ...sortedDueCards].map((card) => card.id);
 }
 
-export function speakDutch(text: string, rate: number = 0.45) {
+// Pre-initialize voices list in the browser as early as possible
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.getVoices();
+}
+
+export function speakDutch(text: string, rate: number = 0.6) {
     if (typeof window === "undefined") return;
 
     if (!("speechSynthesis" in window)) {
@@ -107,42 +112,47 @@ export function speakDutch(text: string, rate: number = 0.45) {
 
     window.speechSynthesis.cancel();
 
+    const cleanText = text.trim();
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = "nl-NL";
+    utterance.rate = rate;
+    utterance.pitch = 1;
+
     const voices = window.speechSynthesis.getVoices();
-    const dutchVoice =
-        voices.find((voice) => voice.lang === "nl-NL") ||
-        voices.find((voice) => voice.lang.startsWith("nl"));
+    const nlVoices = voices.filter(
+        (voice) =>
+            voice.lang.toLowerCase() === "nl-nl" ||
+            voice.lang.toLowerCase().startsWith("nl-") ||
+            voice.lang.toLowerCase() === "nl"
+    );
 
-    const words = text
-        .replace(/[.!?]/g, "")
-        .split(" ")
-        .filter(Boolean);
+    if (nlVoices.length > 0) {
+        // Prioritize higher quality voices:
+        // 1. Google Dutch voice (Chrome)
+        // 2. Siri/Premium/Enhanced/Natural voices (macOS/iOS/Windows)
+        // 3. Known high-quality macOS voices (Xander, Ellen)
+        const googleVoice = nlVoices.find((v) => v.name.toLowerCase().includes("google"));
+        const siriVoice = nlVoices.find((v) => v.name.toLowerCase().includes("siri"));
+        const premiumVoice = nlVoices.find(
+            (v) =>
+                v.name.toLowerCase().includes("premium") ||
+                v.name.toLowerCase().includes("natural") ||
+                v.name.toLowerCase().includes("enhanced")
+        );
+        const namedVoice = nlVoices.find(
+            (v) =>
+                v.name.toLowerCase().includes("xander") ||
+                v.name.toLowerCase().includes("ellen")
+        );
+        const nlNLVoice = nlVoices.find((v) => v.lang.toLowerCase() === "nl-nl");
 
-    let index = 0;
-    const gap = Math.max(50, Math.round(300 * (0.45 / rate)));
-
-    function speakNextWord() {
-        if (index >= words.length) return;
-
-        const word = words[index];
-        const utterance = new SpeechSynthesisUtterance(word);
-
-        utterance.lang = "nl-NL";
-        utterance.rate = rate;
-        utterance.pitch = 1;
-
-        if (dutchVoice) {
-            utterance.voice = dutchVoice;
-        }
-
-        utterance.onend = () => {
-            index += 1;
-            setTimeout(speakNextWord, gap);
-        };
-
-        window.speechSynthesis.speak(utterance);
+        const bestVoice = googleVoice || siriVoice || premiumVoice || namedVoice || nlNLVoice || nlVoices[0];
+        utterance.voice = bestVoice;
     }
 
-    speakNextWord();
+    window.speechSynthesis.speak(utterance);
 }
 
 export function normalizeSavedCards(cards: Partial<Flashcard>[]): Flashcard[] {
@@ -176,74 +186,382 @@ export function normalizeSavedDecks(decks: Partial<Deck>[]): Deck[] {
         })); // <-- Removed the filter that deleted empty lists!
 }
 
-export function rowsToCards(rows: Record<string, unknown>[]) {
-    return rows
-        .map((row) => {
-            const normalizedRow: Record<string, string> = {};
+export function rowsToCards(rows: Record<string, unknown>[]): Flashcard[] {
+    const enToNl: Record<string, string> = {};
+    rows.forEach((row) => {
+        const normalizedRow: Record<string, string> = {};
+        Object.entries(row).forEach(([key, val]) => {
+            normalizedRow[key.toLowerCase().trim()] = String(val ?? "").trim();
+        });
 
-            Object.entries(row).forEach(([key, value]) => {
-                const cleanKey = key.replace(/^\uFEFF/, "").trim().toLowerCase();
-                normalizedRow[cleanKey] = String(value ?? "").trim();
-            });
+        const dutchWord =
+            normalizedRow["dutch meaning"] ||
+            normalizedRow["word"] ||
+            normalizedRow["dutch"] ||
+            normalizedRow["nederlands"] ||
+            normalizedRow["hoofdwoord"] ||
+            "";
 
-            const values = Object.values(normalizedRow);
+        const englishWord =
+            normalizedRow["base word"] ||
+            normalizedRow["meaning"] ||
+            normalizedRow["english"] ||
+            normalizedRow["engels"] ||
+            normalizedRow["translation"] ||
+            normalizedRow["betekenis"] ||
+            "";
 
-            const dutch =
+        if (dutchWord && englishWord) {
+            const cleanEn = englishWord.toLowerCase().trim();
+            if (cleanEn && !enToNl[cleanEn]) {
+                enToNl[cleanEn] = dutchWord.trim();
+            }
+        }
+    });
+
+    return rows.flatMap((row) => {
+        const normalizedRow: Record<string, string> = {};
+        Object.entries(row).forEach(([key, value]) => {
+            const cleanKey = key.replace(/^\uFEFF/, "").trim().toLowerCase();
+            normalizedRow[cleanKey] = String(value ?? "").trim();
+        });
+
+        // A. Check if it's the user's synonym/antonym format with multiple items
+        const isUserRelationFormat = "dutch meaning" in normalizedRow && "base word" in normalizedRow;
+        if (isUserRelationFormat) {
+            const word = normalizedRow["dutch meaning"] || "";
+            const meaning = normalizedRow["base word"] || "";
+            const synonymsStr = normalizedRow["common synonyms"] || "";
+            const antonymsStr = normalizedRow["common antonyms"] || "";
+
+            const cards: Flashcard[] = [];
+
+            if (synonymsStr) {
+                const synonyms = synonymsStr.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+                synonyms.forEach((syn) => {
+                    const cleanSyn = syn.toLowerCase();
+                    const dutchSyn = enToNl[cleanSyn] || syn;
+                    cards.push({
+                        id: createId(),
+                        dutch: word.trim(),
+                        english: dutchSyn.trim(),
+                        known: false,
+                        difficult: false,
+                        type: "synonym",
+                        topic: `Related Meaning: ${syn.trim()}`,
+                        examSkill: meaning.trim() ? `Meaning: ${meaning.trim()}` : "",
+                        reviewCount: 0,
+                        nextReviewDate: "",
+                        lastReviewedDate: "",
+                        ease: DEFAULT_EASE,
+                        intervalDays: 0,
+                    });
+                });
+            }
+
+            if (antonymsStr) {
+                const antonyms = antonymsStr.split(/[;,]/).map((a) => a.trim()).filter(Boolean);
+                antonyms.forEach((ant) => {
+                    const cleanAnt = ant.toLowerCase();
+                    const dutchAnt = enToNl[cleanAnt] || ant;
+                    cards.push({
+                        id: createId(),
+                        dutch: word.trim(),
+                        english: dutchAnt.trim(),
+                        known: false,
+                        difficult: false,
+                        type: "antonym",
+                        topic: `Related Meaning: ${ant.trim()}`,
+                        examSkill: meaning.trim() ? `Meaning: ${meaning.trim()}` : "",
+                        reviewCount: 0,
+                        nextReviewDate: "",
+                        lastReviewedDate: "",
+                        ease: DEFAULT_EASE,
+                        intervalDays: 0,
+                    });
+                });
+            }
+
+            return cards;
+        }
+
+        // B. Check if it's the standard relation format (e.g. Word, Type, Related, Meaning)
+        const isStandardRelationFormat = "related" in normalizedRow && ("word" in normalizedRow || "dutch" in normalizedRow);
+        if (isStandardRelationFormat) {
+            const word =
+                normalizedRow["word"] ||
                 normalizedRow["dutch"] ||
                 normalizedRow["nederlands"] ||
-                normalizedRow["nl"] ||
-                normalizedRow["word"] ||
-                normalizedRow["front"] ||
-                normalizedRow["question"] ||
-                values[0] ||
+                normalizedRow["hoofdwoord"] ||
                 "";
 
-            const english =
+            const typeStr = (
+                normalizedRow["type"] ||
+                normalizedRow["relation"] ||
+                normalizedRow["relatie"] ||
+                "synonym"
+            ).toLowerCase();
+
+            const typeLabel = typeStr.includes("ant") ? "antonym" : "synonym";
+
+            const related =
+                normalizedRow["related"] ||
+                normalizedRow["match"] ||
+                normalizedRow["synonym"] ||
+                normalizedRow["antonym"] ||
+                normalizedRow["synoniem"] ||
+                normalizedRow["antoniem"] ||
+                "";
+
+            const meaning =
+                normalizedRow["meaning"] ||
                 normalizedRow["english"] ||
                 normalizedRow["engels"] ||
-                normalizedRow["en"] ||
                 normalizedRow["translation"] ||
-                normalizedRow["meaning"] ||
-                normalizedRow["back"] ||
-                normalizedRow["answer"] ||
-                values[1] ||
+                normalizedRow["betekenis"] ||
                 "";
 
-            const type =
-                normalizedRow["type"] ||
-                normalizedRow["part of speech"] ||
-                normalizedRow["partofspeech"] ||
-                normalizedRow["word type"] ||
-                normalizedRow["category"] ||
+            const relatedMeaning =
+                normalizedRow["related meaning"] ||
+                normalizedRow["relatedmeaning"] ||
+                normalizedRow["match meaning"] ||
                 "";
 
-            const topic =
-                normalizedRow["topic"] ||
-                normalizedRow["theme"] ||
-                normalizedRow["subject"] ||
-                "";
+            if (word && related) {
+                return [{
+                    id: createId(),
+                    dutch: word.trim(),
+                    english: related.trim(),
+                    known: false,
+                    difficult: false,
+                    type: typeLabel,
+                    topic: relatedMeaning.trim() ? `Related Meaning: ${relatedMeaning.trim()}` : "",
+                    examSkill: meaning.trim() ? `Meaning: ${meaning.trim()}` : "",
+                    reviewCount: 0,
+                    nextReviewDate: "",
+                    lastReviewedDate: "",
+                    ease: DEFAULT_EASE,
+                    intervalDays: 0,
+                }];
+            }
+        }
 
-            const examSkill =
-                normalizedRow["examskill"] ||
-                normalizedRow["exam skill"] ||
-                normalizedRow["skill"] ||
-                "";
+        // C. Standard single card format
+        const values = Object.values(normalizedRow);
 
-            return {
-                id: createId(),
-                dutch: dutch.trim(),
-                english: english.trim(),
-                known: false,
-                difficult: false,
-                type: type.trim(),
-                topic: topic.trim(),
-                examSkill: examSkill.trim(),
-                reviewCount: 0,
-                nextReviewDate: "",
-                lastReviewedDate: "",
-                ease: DEFAULT_EASE,
-                intervalDays: 0,
-            };
-        })
-        .filter((card) => card.dutch && card.english);
+        const dutch =
+            normalizedRow["dutch"] ||
+            normalizedRow["nederlands"] ||
+            normalizedRow["nl"] ||
+            normalizedRow["word"] ||
+            normalizedRow["front"] ||
+            normalizedRow["question"] ||
+            values[0] ||
+            "";
+
+        const english =
+            normalizedRow["english"] ||
+            normalizedRow["engels"] ||
+            normalizedRow["en"] ||
+            normalizedRow["translation"] ||
+            normalizedRow["meaning"] ||
+            normalizedRow["back"] ||
+            normalizedRow["answer"] ||
+            values[1] ||
+            "";
+
+        const type =
+            normalizedRow["type"] ||
+            normalizedRow["part of speech"] ||
+            normalizedRow["partofspeech"] ||
+            normalizedRow["word type"] ||
+            normalizedRow["category"] ||
+            "";
+
+        const topic =
+            normalizedRow["topic"] ||
+            normalizedRow["theme"] ||
+            normalizedRow["subject"] ||
+            "";
+
+        const examSkill =
+            normalizedRow["examskill"] ||
+            normalizedRow["exam skill"] ||
+            normalizedRow["skill"] ||
+            "";
+
+        if (!dutch || !english) return [];
+
+        return [{
+            id: createId(),
+            dutch: dutch.trim(),
+            english: english.trim(),
+            known: false,
+            difficult: false,
+            type: type.trim(),
+            topic: topic.trim(),
+            examSkill: examSkill.trim(),
+            reviewCount: 0,
+            nextReviewDate: "",
+            lastReviewedDate: "",
+            ease: DEFAULT_EASE,
+            intervalDays: 0,
+        }];
+    });
+}
+
+export function rowsToRelations(rows: Record<string, unknown>[]): WordRelation[] {
+    const enToNl: Record<string, string> = {};
+    rows.forEach((row) => {
+        const normalizedRow: Record<string, string> = {};
+        Object.entries(row).forEach(([key, val]) => {
+            normalizedRow[key.toLowerCase().trim()] = String(val ?? "").trim();
+        });
+
+        const dutchWord =
+            normalizedRow["dutch meaning"] ||
+            normalizedRow["word"] ||
+            normalizedRow["dutch"] ||
+            normalizedRow["nederlands"] ||
+            normalizedRow["hoofdwoord"] ||
+            "";
+
+        const englishWord =
+            normalizedRow["base word"] ||
+            normalizedRow["meaning"] ||
+            normalizedRow["english"] ||
+            normalizedRow["engels"] ||
+            normalizedRow["translation"] ||
+            normalizedRow["betekenis"] ||
+            "";
+
+        if (dutchWord && englishWord) {
+            const cleanEn = englishWord.toLowerCase().trim();
+            if (cleanEn && !enToNl[cleanEn]) {
+                enToNl[cleanEn] = dutchWord.trim();
+            }
+        }
+    });
+
+    return rows.flatMap((row) => {
+        const normalizedRow: Record<string, string> = {};
+        Object.entries(row).forEach(([key, val]) => {
+            normalizedRow[key.toLowerCase().trim()] = String(val ?? "").trim();
+        });
+
+        // Detect user's specific format: "dutch meaning" and "base word"
+        const isUserFormat = "dutch meaning" in normalizedRow && "base word" in normalizedRow;
+
+        if (isUserFormat) {
+            const word = normalizedRow["dutch meaning"] || "";
+            const meaning = normalizedRow["base word"] || "";
+            const synonymsStr = normalizedRow["common synonyms"] || "";
+            const antonymsStr = normalizedRow["common antonyms"] || "";
+
+            const relationsList: WordRelation[] = [];
+
+            if (synonymsStr) {
+                const synonyms = synonymsStr.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+                synonyms.forEach((syn) => {
+                    const cleanSyn = syn.toLowerCase();
+                    const dutchSyn = enToNl[cleanSyn];
+                    relationsList.push({
+                        id: createId(),
+                        word,
+                        type: "synonym",
+                        related: dutchSyn || syn,
+                        meaning,
+                        isEnglishRelated: !dutchSyn,
+                    });
+                });
+            }
+
+            if (antonymsStr) {
+                const antonyms = antonymsStr.split(/[;,]/).map((a) => a.trim()).filter(Boolean);
+                antonyms.forEach((ant) => {
+                    const cleanAnt = ant.toLowerCase();
+                    const dutchAnt = enToNl[cleanAnt];
+                    relationsList.push({
+                        id: createId(),
+                        word,
+                        type: "antonym",
+                        related: dutchAnt || ant,
+                        meaning,
+                        isEnglishRelated: !dutchAnt,
+                    });
+                });
+            }
+
+            return relationsList;
+        }
+
+        // Standard format (1-to-1 relation)
+        const word =
+            normalizedRow["word"] ||
+            normalizedRow["dutch"] ||
+            normalizedRow["nederlands"] ||
+            normalizedRow["hoofdwoord"] ||
+            "";
+
+        const typeStr = (
+            normalizedRow["type"] ||
+            normalizedRow["relation"] ||
+            normalizedRow["relatie"] ||
+            "synonym"
+        ).toLowerCase();
+
+        const type: "synonym" | "antonym" = typeStr.includes("ant") ? "antonym" : "synonym";
+
+        const related =
+            normalizedRow["related"] ||
+            normalizedRow["match"] ||
+            normalizedRow["synonym"] ||
+            normalizedRow["antonym"] ||
+            normalizedRow["synoniem"] ||
+            normalizedRow["antoniem"] ||
+            "";
+
+        const meaning =
+            normalizedRow["meaning"] ||
+            normalizedRow["english"] ||
+            normalizedRow["engels"] ||
+            normalizedRow["translation"] ||
+            normalizedRow["betekenis"] ||
+            "";
+
+        if (!word || !related) return [];
+
+        return [{
+            id: createId(),
+            word: word.trim(),
+            type,
+            related: related.trim(),
+            meaning: meaning.trim(),
+            isEnglishRelated: false,
+        }];
+    });
+}
+
+export function speakEnglish(text: string, rate: number = 0.6) {
+    if (typeof window === "undefined") return;
+    if (!("speechSynthesis" in window)) {
+        alert("Speech is not supported on this device.");
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+    const cleanText = text.trim();
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = "en-US";
+    utterance.rate = rate;
+    utterance.pitch = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find((v) => v.lang.toLowerCase() === "en-us" || v.lang.toLowerCase().startsWith("en"));
+    if (enVoice) {
+        utterance.voice = enVoice;
+    }
+    window.speechSynthesis.speak(utterance);
 }

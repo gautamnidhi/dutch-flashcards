@@ -3,9 +3,10 @@
 import { useState } from "react";
 import FlashcardsSection from "../components/FlashcardsSection";
 import ListeningSection from "../components/ListeningSection";
+import TranslateSection from "../components/TranslateSection";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"flashcards" | "listening">(
+  const [activeTab, setActiveTab] = useState<"flashcards" | "listening" | "translate">(
     "flashcards"
   );
 
@@ -26,9 +27,9 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white p-2 shadow">
+        <div className="mb-4 grid grid-cols-3 gap-2 rounded-2xl bg-white p-2 shadow text-xs">
           <button
-            className={`rounded-xl px-4 py-3 font-semibold ${
+            className={`rounded-xl px-3 py-3 font-semibold text-center ${
               activeTab === "flashcards"
                 ? "bg-gray-900 text-white"
                 : "bg-gray-100 text-gray-700"
@@ -39,7 +40,7 @@ export default function Home() {
           </button>
 
           <button
-            className={`rounded-xl px-4 py-3 font-semibold ${
+            className={`rounded-xl px-3 py-3 font-semibold text-center ${
               activeTab === "listening"
                 ? "bg-gray-900 text-white"
                 : "bg-gray-100 text-gray-700"
@@ -48,10 +49,22 @@ export default function Home() {
           >
             Listening
           </button>
+
+          <button
+            className={`rounded-xl px-3 py-3 font-semibold text-center ${
+              activeTab === "translate"
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-700"
+            }`}
+            onClick={() => setActiveTab("translate")}
+          >
+            Translate
+          </button>
         </div>
 
         {activeTab === "flashcards" && <FlashcardsSection />}
         {activeTab === "listening" && <ListeningSection />}
+        {activeTab === "translate" && <TranslateSection />}
       </div>
 
       <button

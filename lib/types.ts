@@ -33,3 +33,12 @@ export type AudioLesson = {
 export type StudyMode = "practice" | "today" | "difficult" | "known";
 
 export type ReviewRating = "again" | "hard" | "good" | "easy";
+
+export type WordRelation = {
+  id: string;
+  word: string;
+  type: "synonym" | "antonym";
+  related: string;
+  meaning: string;
+  isEnglishRelated?: boolean;
+};
