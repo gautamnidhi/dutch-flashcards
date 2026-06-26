@@ -4,9 +4,10 @@ import { useState } from "react";
 import FlashcardsSection from "../components/FlashcardsSection";
 import ListeningSection from "../components/ListeningSection";
 import TranslateSection from "../components/TranslateSection";
+import GrammarSection from "../components/GrammarSection";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"flashcards" | "listening" | "translate">(
+  const [activeTab, setActiveTab] = useState<"flashcards" | "listening" | "translate" | "grammar">(
     "flashcards"
   );
 
@@ -27,9 +28,9 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="mb-4 grid grid-cols-3 gap-2 rounded-2xl bg-white p-2 shadow text-xs">
+        <div className="mb-4 grid grid-cols-4 gap-1.5 rounded-2xl bg-white p-2 shadow text-[10px] sm:text-xs">
           <button
-            className={`rounded-xl px-3 py-3 font-semibold text-center ${
+            className={`rounded-xl py-3 font-semibold text-center ${
               activeTab === "flashcards"
                 ? "bg-gray-900 text-white"
                 : "bg-gray-100 text-gray-700"
@@ -40,7 +41,7 @@ export default function Home() {
           </button>
 
           <button
-            className={`rounded-xl px-3 py-3 font-semibold text-center ${
+            className={`rounded-xl py-3 font-semibold text-center ${
               activeTab === "listening"
                 ? "bg-gray-900 text-white"
                 : "bg-gray-100 text-gray-700"
@@ -51,7 +52,7 @@ export default function Home() {
           </button>
 
           <button
-            className={`rounded-xl px-3 py-3 font-semibold text-center ${
+            className={`rounded-xl py-3 font-semibold text-center ${
               activeTab === "translate"
                 ? "bg-gray-900 text-white"
                 : "bg-gray-100 text-gray-700"
@@ -60,11 +61,23 @@ export default function Home() {
           >
             Translate
           </button>
+
+          <button
+            className={`rounded-xl py-3 font-semibold text-center ${
+              activeTab === "grammar"
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-700"
+            }`}
+            onClick={() => setActiveTab("grammar")}
+          >
+            Grammar
+          </button>
         </div>
 
         {activeTab === "flashcards" && <FlashcardsSection />}
         {activeTab === "listening" && <ListeningSection />}
         {activeTab === "translate" && <TranslateSection />}
+        {activeTab === "grammar" && <GrammarSection />}
       </div>
 
       <button

@@ -263,6 +263,10 @@ export default function FlashcardsSection() {
         {
           name: "Dutch Time Words",
           path: "/lists/time_words.xlsx"
+        },
+        {
+          name: "Dutch Alphabet & Sounds",
+          path: "/lists/alphabet_pronunciation.csv"
         }
       ];
 
@@ -330,7 +334,7 @@ export default function FlashcardsSection() {
 
       setDecks(updatedDecks);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks));
-      localStorage.setItem("dutch-default-lists-loaded-v7", "true");
+      localStorage.setItem("dutch-default-lists-loaded-v10", "true");
       
       if (updatedDecks.length > 0) {
         // Select the newly loaded relation deck as default
@@ -368,7 +372,7 @@ export default function FlashcardsSection() {
       parsedDecks = [...parsedDecks, initialDifficultDeck];
     }
 
-    const defaultsLoaded = localStorage.getItem("dutch-default-lists-loaded-v7");
+    const defaultsLoaded = localStorage.getItem("dutch-default-lists-loaded-v10");
     if (!defaultsLoaded) {
       loadDefaultLists(parsedDecks);
     } else {
@@ -520,6 +524,85 @@ export default function FlashcardsSection() {
   }, [selectedCards, studyMode, todayQueueIdsBySession, todaySessionKey]);
 
   const currentCard = visibleCards[currentIndex];
+
+  // Create a memoized mapping of Dutch words to their English meanings
+  const wordMeaningsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    
+    // 1. Populate from standard vocabulary cards across all decks
+    decks.forEach((deck) => {
+      deck.cards.forEach((card) => {
+        if (card.dutch && card.english && card.type !== "synonym" && card.type !== "antonym") {
+          const dutch = card.dutch.trim().toLowerCase();
+          if (!map[dutch]) {
+            map[dutch] = card.english.trim();
+          }
+        }
+      });
+    });
+
+    // 2. Populate from synonym/antonym cards' main meanings (examSkill)
+    decks.forEach((deck) => {
+      deck.cards.forEach((card) => {
+        if (card.dutch && card.examSkill && (card.type === "synonym" || card.type === "antonym")) {
+          const dutch = card.dutch.trim().toLowerCase();
+          const m = card.examSkill.replace(/^meaning:\s*/i, "").trim();
+          if (m && !map[dutch]) {
+            map[dutch] = m;
+          }
+        }
+      });
+    });
+
+    // 3. Populate from synonym/antonym cards' related meanings (topic)
+    decks.forEach((deck) => {
+      deck.cards.forEach((card) => {
+        if (card.english && card.topic && (card.type === "synonym" || card.type === "antonym")) {
+          const related = card.english.trim().toLowerCase();
+          const m = card.topic.replace(/^related meaning:\s*/i, "").trim();
+          if (m && !map[related]) {
+            map[related] = m;
+          }
+        }
+      });
+    });
+
+    return map;
+  }, [decks]);
+
+  const isRelationCard = Boolean(currentCard && (currentCard.type === "synonym" || currentCard.type === "antonym"));
+
+  // Extract relations elements if it's a relation card
+  const relationData = useMemo(() => {
+    if (!currentCard || !isRelationCard) return null;
+
+    const wordA = currentCard.dutch.trim(); // always Dutch main word, e.g. "achter"
+    const wordB = currentCard.english.trim(); // always Dutch related word, e.g. "voor"
+
+    // Lookup meaning for A
+    let meaningA = currentCard.examSkill ? currentCard.examSkill.replace(/^meaning:\s*/i, "").trim() : "";
+    if (!meaningA && wordMeaningsMap[wordA.toLowerCase()]) {
+      meaningA = wordMeaningsMap[wordA.toLowerCase()];
+    }
+
+    // Lookup meaning for B
+    let meaningB = currentCard.topic ? currentCard.topic.replace(/^related meaning:\s*/i, "").trim() : "";
+    if (!meaningB && wordMeaningsMap[wordB.toLowerCase()]) {
+      meaningB = wordMeaningsMap[wordB.toLowerCase()];
+    }
+
+    return {
+      wordA,
+      meaningA,
+      wordB,
+      meaningB,
+      relationType: currentCard.type,
+      promptWord: studyDirection === "nl-en" ? wordA : wordB,
+      promptMeaning: studyDirection === "nl-en" ? meaningA : meaningB,
+      targetWord: studyDirection === "nl-en" ? wordB : wordA,
+      targetMeaning: studyDirection === "nl-en" ? meaningB : meaningA,
+    };
+  }, [currentCard, isRelationCard, wordMeaningsMap, studyDirection]);
 
   const progressPercent =
       visibleCards.length > 0
@@ -1480,73 +1563,88 @@ export default function FlashcardsSection() {
                     ) : null}
 
                     {currentCard.type && (
-                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {currentCard.type}
-                  </span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
+                          isRelationCard
+                            ? currentCard.type === "antonym"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-teal-100 text-teal-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {currentCard.type}
+                        </span>
                     )}
 
-                    {currentCard.examSkill && (
+                    {currentCard.examSkill && !isRelationCard && (
                         <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
-                    {currentCard.examSkill}
-                  </span>
+                          {currentCard.examSkill}
+                        </span>
                     )}
                   </div>
 
-                  <p className="text-xs uppercase tracking-wide text-gray-500">
-                    {studyDirection === "nl-en" ? "Dutch" : "English"}
-                  </p>
+                  {isRelationCard && relationData ? (
+                    <div className="w-full flex flex-col items-center justify-center">
+                      <div className="mb-2 flex flex-col items-center">
+                        <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          relationData.relationType === "antonym"
+                            ? "bg-red-50 text-red-600 border border-red-100"
+                            : "bg-teal-50 text-teal-600 border border-teal-100"
+                        }`}>
+                          {relationData.relationType === "antonym" ? "⚠️ Find the Antonym" : "🤝 Find the Synonym"}
+                        </span>
+                        <p className="mt-2 text-xs text-gray-400">
+                          What is the {relationData.relationType} of this word?
+                        </p>
+                      </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-                    <p className="break-words text-4xl font-bold">
-                      {studyDirection === "nl-en" ? currentCard.dutch : currentCard.english}
-                    </p>
+                      <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+                        <p className="break-words text-4xl font-bold text-gray-900">
+                          {relationData.promptWord}
+                        </p>
 
-                    <span
-                        role="button"
-                        tabIndex={0}
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl shadow active:scale-95 transition-all duration-300 ${
-                            useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText
-                                ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
-                                : "bg-blue-100 text-blue-700"
-                        }`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (studyDirection === "nl-en") {
-                            handleSpeakDutch(currentCard.dutch);
-                          } else {
-                            speakEnglish(currentCard.english);
-                          }
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.stopPropagation();
-                            if (studyDirection === "nl-en") {
-                              handleSpeakDutch(currentCard.dutch);
-                            } else {
-                              speakEnglish(currentCard.english);
-                            }
-                          }
-                        }}
-                        aria-label="Hear pronunciation"
-                    >
-                      {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText ? "🐢" : "🔊"}
-                    </span>
-                  </div>
-
-                  <div
-                      className="mt-3 flex items-center justify-center gap-1.5"
-                      onClick={(event) => event.stopPropagation()}
-                  >
-                    <span className="text-xs text-gray-500 mr-1">Speed:</span>
-                    {[0.4, 0.6, 0.8, 1.0].map((rate) => (
                         <span
+                          role="button"
+                          tabIndex={0}
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl shadow active:scale-95 transition-all duration-300 ${
+                            useSlowSpeech && relationData.promptWord === lastSpeechText
+                              ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                              : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          }`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleSpeakDutch(relationData.promptWord);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.stopPropagation();
+                              handleSpeakDutch(relationData.promptWord);
+                            }
+                          }}
+                          aria-label="Hear pronunciation"
+                        >
+                          {useSlowSpeech && relationData.promptWord === lastSpeechText ? "🐢" : "🔊"}
+                        </span>
+                      </div>
+
+                      {relationData.promptMeaning && (
+                        <p className="mt-2 text-base font-medium text-gray-500 italic">
+                          ({relationData.promptMeaning})
+                        </p>
+                      )}
+
+                      <div
+                        className="mt-4 flex items-center justify-center gap-1.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <span className="text-xs text-gray-500 mr-1">Speed:</span>
+                        {[0.4, 0.6, 0.8, 1.0].map((rate) => (
+                          <span
                             key={rate}
                             role="button"
                             tabIndex={0}
                             className={`rounded-full px-2.5 py-0.5 text-xs font-semibold cursor-pointer active:scale-95 select-none transition-colors ${
-                                speechRate === rate
-                                    ? "bg-blue-600 text-white shadow-sm"
-                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                              speechRate === rate
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                             }`}
                             onClick={() => changeSpeechRate(rate)}
                             onKeyDown={(event) => {
@@ -1554,127 +1652,360 @@ export default function FlashcardsSection() {
                                 changeSpeechRate(rate);
                               }
                             }}
-                        >
-                          {rate}x
-                        </span>
-                    ))}
-                  </div>
+                          >
+                            {rate}x
+                          </span>
+                        ))}
+                      </div>
 
-                  {/* Spelling Practice Input */}
-                  {isSpellingMode && (
-                    <div 
-                      className="mt-6 w-full max-w-sm px-4"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <input
-                        type="text"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-center text-lg font-medium shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all animate-fade-in"
-                        placeholder={studyDirection === "nl-en" ? "Type English translation" : "Type Dutch translation"}
-                        value={typedAnswer}
-                        onChange={(event) => setTypedAnswer(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            handleCheckSpelling();
-                          }
-                        }}
-                        disabled={showAnswer}
-                      />
-                      {!showAnswer && (
-                        <button
-                          type="button"
-                          className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-150"
-                          onClick={handleCheckSpelling}
+                      {isSpellingMode && (
+                        <div 
+                          className="mt-6 w-full max-w-sm px-4"
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          Check Spelling
-                        </button>
+                          <input
+                            type="text"
+                            className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-center text-lg font-medium shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all animate-fade-in"
+                            placeholder={`Type Dutch ${relationData.relationType}`}
+                            value={typedAnswer}
+                            onChange={(event) => setTypedAnswer(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                handleCheckSpelling();
+                              }
+                            }}
+                            disabled={showAnswer}
+                          />
+                          {!showAnswer && (
+                            <button
+                              type="button"
+                              className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-150"
+                              onClick={handleCheckSpelling}
+                            >
+                              Check Spelling
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {showAnswer ? (
+                        <div className="w-full mt-6 flex flex-col items-center border-t pt-5">
+                          {isSpellingMode && spellingResult && (
+                            <div className={`mb-4 w-full max-w-sm rounded-xl p-3 text-sm ${
+                              spellingResult.isCorrect 
+                                ? "bg-green-50 text-green-800 border border-green-200" 
+                                : "bg-red-50 text-red-800 border border-red-200"
+                            }`}>
+                              <p className="font-semibold flex items-center justify-center gap-1.5">
+                                {spellingResult.isCorrect ? "✅ Correct spelling!" : "❌ Spelling incorrect"}
+                              </p>
+                              {!spellingResult.isCorrect && (
+                                <div className="mt-2 space-y-1 text-xs text-left">
+                                  <p>
+                                    <span className="text-gray-500">Your typed answer:</span>{" "}
+                                    <span className="font-semibold line-through text-red-600">
+                                      {spellingResult.typed || "(empty)"}
+                                    </span>
+                                  </p>
+                                  <p>
+                                    <span className="text-gray-500">Correct spelling:</span>{" "}
+                                    <span className="font-semibold text-green-700">
+                                      {spellingResult.correct}
+                                    </span>
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Relationship Comparison Panel */}
+                          <div className="w-full flex flex-col md:flex-row items-stretch justify-center gap-4 mt-2">
+                            {/* Original Box */}
+                            <div className="flex-1 flex flex-col items-center justify-center p-4 rounded-xl bg-gray-50 border border-gray-200/60 min-h-[110px]">
+                              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">
+                                Original Word
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xl font-bold text-gray-800">{relationData.promptWord}</p>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs shadow active:scale-95 transition-all duration-300 ${
+                                    useSlowSpeech && relationData.promptWord === lastSpeechText
+                                      ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                      : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                  }`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleSpeakDutch(relationData.promptWord);
+                                  }}
+                                  aria-label="Hear pronunciation"
+                                >
+                                  {useSlowSpeech && relationData.promptWord === lastSpeechText ? "🐢" : "🔊"}
+                                </span>
+                              </div>
+                              {relationData.promptMeaning && (
+                                <p className="text-xs font-semibold text-gray-500 italic mt-0.5">
+                                  ({relationData.promptMeaning})
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Connection */}
+                            <div className="flex items-center justify-center flex-col py-1 md:py-0">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                relationData.relationType === "antonym" ? "bg-red-100 text-red-700" : "bg-teal-100 text-teal-700"
+                              }`}>
+                                {relationData.relationType === "antonym" ? "↔ Antonym" : "≈ Synonym"}
+                              </span>
+                              <span className="hidden md:inline text-gray-300 text-lg font-light">──</span>
+                              <span className="md:hidden text-gray-300 text-lg font-light">│</span>
+                            </div>
+
+                            {/* Answer Box */}
+                            <div className={`flex-1 flex flex-col items-center justify-center p-4 rounded-xl border min-h-[110px] ${
+                              relationData.relationType === "antonym"
+                                ? "bg-red-50/30 border-red-200/50"
+                                : "bg-teal-50/30 border-teal-200/50"
+                            }`}>
+                              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-1">
+                                {relationData.relationType === "antonym" ? "Opposite Word" : "Equivalent Word"}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xl font-bold text-gray-900">{relationData.targetWord}</p>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs shadow active:scale-95 transition-all duration-300 ${
+                                    useSlowSpeech && relationData.targetWord === lastSpeechText
+                                      ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                      : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                  }`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleSpeakDutch(relationData.targetWord);
+                                  }}
+                                  aria-label="Hear pronunciation"
+                                >
+                                  {useSlowSpeech && relationData.targetWord === lastSpeechText ? "🐢" : "🔊"}
+                                </span>
+                              </div>
+                              {relationData.targetMeaning && (
+                                <p className="text-xs font-semibold text-gray-500 italic mt-0.5">
+                                  ({relationData.targetMeaning})
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : isSpellingMode ? (
+                        <p className="mt-6 text-sm text-gray-400">
+                          Type {relationData.relationType} and press Enter to check
+                        </p>
+                      ) : (
+                        <p className="mt-6 text-sm text-gray-400">
+                          Tap card to see answer
+                        </p>
                       )}
                     </div>
-                  )}
+                  ) : (
+                    <div className="w-full flex flex-col items-center justify-center">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        {studyDirection === "nl-en" ? "Dutch" : "English"}
+                      </p>
 
-                  {showAnswer ? (
-                      <div className="mt-6 w-full border-t pt-5">
-                        {isSpellingMode && spellingResult && (
-                          <div className={`mb-4 rounded-xl p-3 text-sm ${
-                            spellingResult.isCorrect 
-                              ? "bg-green-50 text-green-800 border border-green-200" 
-                              : "bg-red-50 text-red-800 border border-red-200"
-                          }`}>
-                            <p className="font-semibold flex items-center justify-center gap-1.5">
-                              {spellingResult.isCorrect ? "✅ Correct spelling!" : "❌ Spelling incorrect"}
+                      <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+                        <p className="break-words text-4xl font-bold">
+                          {studyDirection === "nl-en" ? currentCard.dutch : currentCard.english}
+                        </p>
+
+                        <span
+                            role="button"
+                            tabIndex={0}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl shadow active:scale-95 transition-all duration-300 ${
+                                useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText
+                                    ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                    : "bg-blue-100 text-blue-700"
+                            }`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (studyDirection === "nl-en") {
+                                handleSpeakDutch(currentCard.dutch);
+                              } else {
+                                speakEnglish(currentCard.english);
+                              }
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.stopPropagation();
+                                if (studyDirection === "nl-en") {
+                                  handleSpeakDutch(currentCard.dutch);
+                                } else {
+                                  speakEnglish(currentCard.english);
+                                }
+                              }
+                            }}
+                            aria-label="Hear pronunciation"
+                        >
+                          {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText ? "🐢" : "🔊"}
+                        </span>
+                      </div>
+
+                      <div
+                          className="mt-3 flex items-center justify-center gap-1.5"
+                          onClick={(event) => event.stopPropagation()}
+                      >
+                        <span className="text-xs text-gray-500 mr-1">Speed:</span>
+                        {[0.4, 0.6, 0.8, 1.0].map((rate) => (
+                            <span
+                                key={rate}
+                                role="button"
+                                tabIndex={0}
+                                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold cursor-pointer active:scale-95 select-none transition-colors ${
+                                    speechRate === rate
+                                        ? "bg-blue-600 text-white shadow-sm"
+                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                }`}
+                                onClick={() => changeSpeechRate(rate)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    changeSpeechRate(rate);
+                                  }
+                                }}
+                            >
+                              {rate}x
+                            </span>
+                        ))}
+                      </div>
+
+                      {isSpellingMode && (
+                        <div 
+                          className="mt-6 w-full max-w-sm px-4"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-center text-lg font-medium shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all animate-fade-in"
+                            placeholder={studyDirection === "nl-en" ? "Type English translation" : "Type Dutch translation"}
+                            value={typedAnswer}
+                            onChange={(event) => setTypedAnswer(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                handleCheckSpelling();
+                              }
+                            }}
+                            disabled={showAnswer}
+                          />
+                          {!showAnswer && (
+                            <button
+                              type="button"
+                              className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-150"
+                              onClick={handleCheckSpelling}
+                            >
+                              Check Spelling
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {showAnswer ? (
+                          <div className="mt-6 w-full border-t pt-5">
+                            {isSpellingMode && spellingResult && (
+                              <div className={`mb-4 rounded-xl p-3 text-sm ${
+                                spellingResult.isCorrect 
+                                  ? "bg-green-50 text-green-800 border border-green-200" 
+                                  : "bg-red-50 text-red-800 border border-red-200"
+                              }`}>
+                                <p className="font-semibold flex items-center justify-center gap-1.5">
+                                  {spellingResult.isCorrect ? "✅ Correct spelling!" : "❌ Spelling incorrect"}
+                                </p>
+                                {!spellingResult.isCorrect && (
+                                  <div className="mt-2 space-y-1 text-xs">
+                                    <p>
+                                      <span className="text-gray-500">Your typed answer:</span>{" "}
+                                      <span className="font-semibold line-through text-red-600">
+                                        {spellingResult.typed || "(empty)"}
+                                      </span>
+                                    </p>
+                                    <p>
+                                      <span className="text-gray-500">Correct spelling:</span>{" "}
+                                      <span className="font-semibold text-green-700">
+                                        {spellingResult.correct}
+                                      </span>
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <p className="text-xs uppercase tracking-wide text-gray-500">
+                              {studyDirection === "nl-en" ? "English" : "Dutch"}
                             </p>
-                            {!spellingResult.isCorrect && (
-                              <div className="mt-2 space-y-1 text-xs">
-                                <p>
-                                  <span className="text-gray-500">Your typed answer:</span>{" "}
-                                  <span className="font-semibold line-through text-red-600">
-                                    {spellingResult.typed || "(empty)"}
-                                  </span>
-                                </p>
-                                <p>
-                                  <span className="text-gray-500">Correct spelling:</span>{" "}
-                                  <span className="font-semibold text-green-700">
-                                    {spellingResult.correct}
-                                  </span>
-                                </p>
+
+                            <div className="mt-3 flex items-center justify-center gap-3">
+                              <p className="text-3xl font-semibold">
+                                {studyDirection === "nl-en" ? currentCard.english : currentCard.dutch}
+                              </p>
+                              {studyDirection === "en-nl" && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm shadow active:scale-95 transition-all duration-300 ${
+                                    useSlowSpeech && currentCard.dutch === lastSpeechText
+                                      ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                      : "bg-blue-100 text-blue-700"
+                                  }`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleSpeakDutch(currentCard.dutch);
+                                  }}
+                                  aria-label="Hear pronunciation"
+                                >
+                                  {useSlowSpeech && currentCard.dutch === lastSpeechText ? "🐢" : "🔊"}
+                                </span>
+                              )}
+                              {studyDirection === "nl-en" && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm shadow active:scale-95 transition-all duration-300 ${
+                                    useSlowSpeech && currentCard.english === lastSpeechText
+                                      ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
+                                      : "bg-blue-100 text-blue-700"
+                                  }`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    speakEnglish(currentCard.english);
+                                  }}
+                                  aria-label="Hear pronunciation"
+                                >
+                                  {useSlowSpeech && currentCard.english === lastSpeechText ? "🐢" : "🔊"}
+                                </span>
+                              )}
+                            </div>
+
+                            {currentCard.topic && (
+                              <div className="mt-2 text-sm text-gray-500">
+                                {currentCard.topic.startsWith("Related Meaning:") ? (
+                                  <p className="italic">({currentCard.topic.replace("Related Meaning:", "").trim()})</p>
+                                ) : (
+                                  <p>Topic: {currentCard.topic}</p>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
-
-                        <p className="text-xs uppercase tracking-wide text-gray-500">
-                          {studyDirection === "nl-en"
-                            ? (currentCard.type === "synonym" || currentCard.type === "antonym" ? "Related Word (Dutch)" : "English")
-                            : "Dutch"
-                          }
-                        </p>
-
-                        <div className="mt-3 flex items-center justify-center gap-3">
-                          <p className="text-3xl font-semibold">
-                            {studyDirection === "nl-en" ? currentCard.english : currentCard.dutch}
+                      ) : isSpellingMode ? (
+                          <p className="mt-6 text-sm text-gray-400">
+                            Type translation and press Enter to check
                           </p>
-                          {(studyDirection === "en-nl" || currentCard.type === "synonym" || currentCard.type === "antonym") && (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm shadow active:scale-95 transition-all duration-300 ${
-                                useSlowSpeech && (studyDirection === "nl-en" ? currentCard.english : currentCard.dutch) === lastSpeechText
-                                  ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
-                                  : "bg-blue-100 text-blue-700"
-                              }`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (studyDirection === "nl-en") {
-                                  speakEnglish(currentCard.english);
-                                } else {
-                                  handleSpeakDutch(currentCard.dutch);
-                                }
-                              }}
-                              aria-label="Hear pronunciation"
-                            >
-                              {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.english : currentCard.dutch) === lastSpeechText ? "🐢" : "🔊"}
-                            </span>
-                          )}
-                        </div>
-
-                        {currentCard.topic && (
-                          <div className="mt-2 text-sm text-gray-500">
-                            {currentCard.topic.startsWith("Related Meaning:") ? (
-                              <p className="italic">({currentCard.topic.replace("Related Meaning:", "").trim()})</p>
-                            ) : (
-                              <p>Topic: {currentCard.topic}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                  ) : isSpellingMode ? (
-                      <p className="mt-6 text-sm text-gray-400">
-                        Type translation and press Enter to check
-                      </p>
-                  ) : (
-                      <p className="mt-6 text-sm text-gray-400">
-                        Tap card to see answer
-                      </p>
+                      ) : (
+                          <p className="mt-6 text-sm text-gray-400">
+                            Tap card to see answer
+                          </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
