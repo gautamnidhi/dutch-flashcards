@@ -17,6 +17,7 @@ import {
   rowsToCards,
   shuffleCards,
   speakDutch,
+  speakEnglish,
 } from "../lib/flashcardUtils";
 
 const DIFFICULT_LIST_NAME = "Difficult_words";
@@ -205,6 +206,17 @@ export default function FlashcardsSection() {
   const [mouseEndX, setMouseEndX] = useState<number | null>(null);
   const cardSwipeTriggeredRef = useRef(false);
 
+  const [studyDirection, setStudyDirection] = useState<"nl-en" | "en-nl">("nl-en");
+  const [isSpellingMode, setIsSpellingMode] = useState(false);
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const [spellingResult, setSpellingResult] = useState<{
+    isCorrect: boolean;
+    typed: string;
+    correct: string;
+  } | null>(null);
+  const [spellingMistakes, setSpellingMistakes] = useState<Flashcard[]>([]);
+  const [showSpellingMistakes, setShowSpellingMistakes] = useState(false);
+
   function isDifficultList(deck: Deck) {
     return deck.name.trim().toLowerCase() === DIFFICULT_LIST_NAME.toLowerCase();
   }
@@ -375,6 +387,15 @@ export default function FlashcardsSection() {
     if (savedSpeechRate) {
       setSpeechRate(parseFloat(savedSpeechRate));
     }
+
+    const savedMistakes = localStorage.getItem("dutch-spelling-mistakes");
+    if (savedMistakes) {
+      try {
+        setSpellingMistakes(JSON.parse(savedMistakes));
+      } catch (e) {
+        console.error("Failed to parse spelling mistakes", e);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -397,6 +418,8 @@ export default function FlashcardsSection() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setUseSlowSpeech(false);
     setLastSpeechText("");
+    setTypedAnswer("");
+    setSpellingResult(null);
   }, [currentIndex, selectedDeckId]);
 
   // Save decks when state updates
@@ -405,6 +428,10 @@ export default function FlashcardsSection() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
     }
   }, [decks]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-spelling-mistakes", JSON.stringify(spellingMistakes));
+  }, [spellingMistakes]);
 
   useEffect(() => {
     localStorage.setItem(DAILY_LIMIT_KEY, dailyLimit);
@@ -1136,6 +1163,73 @@ export default function FlashcardsSection() {
     setMessage("");
   }
 
+  function handleCheckSpelling() {
+    if (!currentCard) return;
+
+    const correctAnswer = studyDirection === "nl-en" ? currentCard.english : currentCard.dutch;
+
+    const clean = (text: string) =>
+      text
+        .toLowerCase()
+        .trim()
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+        .replace(/\s+/g, " ");
+
+    const isCorrect = clean(typedAnswer) === clean(correctAnswer);
+
+    setSpellingResult({
+      isCorrect,
+      typed: typedAnswer,
+      correct: correctAnswer,
+    });
+
+    setShowAnswer(true);
+
+    if (!isCorrect) {
+      // Add to spelling mistakes if not already present
+      setSpellingMistakes((prev) => {
+        const exists = prev.some((c) => c.id === currentCard.id);
+        if (exists) return prev;
+        return [currentCard, ...prev];
+      });
+
+      // Mark the card as difficult automatically
+      updateSelectedDeckCards((cards) =>
+        cards.map((card) =>
+          card.id === currentCard.id ? { ...card, difficult: true } : card
+        )
+      );
+    }
+  }
+
+  function createDeckFromSpellingMistakes() {
+    if (spellingMistakes.length === 0) return;
+    
+    const newDeck: Deck = {
+      id: createId(),
+      name: `Spelling Mistakes (${new Date().toLocaleDateString()})`,
+      cards: spellingMistakes.map(c => ({
+        ...c,
+        id: createId(),
+        known: false,
+        difficult: true,
+        reviewCount: 0,
+        nextReviewDate: "",
+        lastReviewedDate: "",
+        ease: DEFAULT_EASE,
+        intervalDays: 0
+      })),
+      createdAt: new Date().toISOString()
+    };
+    
+    setDecks(prev => [newDeck, ...prev]);
+    setSelectedDeckId(newDeck.id);
+    setStudyMode("practice");
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setMessage(`Created spelling practice list: "${newDeck.name}"`);
+  }
+
   return (
       <>
         {selectedDeck && (
@@ -1217,6 +1311,60 @@ export default function FlashcardsSection() {
                     {stats.due} card(s) due for review today.
                   </p>
               )}
+
+              {/* Study Direction and Spelling Mode Toggles */}
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Practice Direction:</span>
+                  <div className="flex bg-gray-100 rounded-lg p-0.5 select-none">
+                    <button
+                        type="button"
+                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                            studyDirection === "nl-en"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : "text-gray-500 hover:text-gray-900"
+                        }`}
+                        onClick={() => {
+                          setStudyDirection("nl-en");
+                          setShowAnswer(false);
+                        }}
+                    >
+                      NL → EN
+                    </button>
+                    <button
+                        type="button"
+                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                            studyDirection === "en-nl"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : "text-gray-500 hover:text-gray-900"
+                        }`}
+                        onClick={() => {
+                          setStudyDirection("en-nl");
+                          setShowAnswer(false);
+                        }}
+                    >
+                      EN → NL
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Spelling Practice:</span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={isSpellingMode}
+                      onChange={(e) => {
+                        setIsSpellingMode(e.target.checked);
+                        setTypedAnswer("");
+                        setSpellingResult(null);
+                      }}
+                    />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
             </section>
         )}
 
@@ -1249,16 +1397,45 @@ export default function FlashcardsSection() {
                 </p>
               </div>
 
-              <div className="relative mb-4 min-h-[320px] rounded-2xl border border-gray-200">
-                <button
-                    className="flex min-h-[320px] w-full flex-col items-center justify-center rounded-2xl px-8 py-10 text-center transition active:scale-[0.99]"
-                    onClick={() => {
+              <div className="relative mb-4 min-h-[320px] rounded-2xl border border-gray-200 bg-white">
+                <div
+                    role="button"
+                    tabIndex={0}
+                    className="flex min-h-[320px] w-full flex-col items-center justify-center rounded-2xl px-8 py-10 text-center transition cursor-pointer select-none active:scale-[0.99] hover:bg-gray-50/10"
+                    onClick={(event) => {
                       if (cardSwipeTriggeredRef.current) {
                         cardSwipeTriggeredRef.current = false;
                         return;
                       }
 
-                      setShowAnswer((value) => !value);
+                      // Check if clicked target is an interactive element to prevent unwanted flips
+                      const target = event.target as HTMLElement;
+                      if (
+                        target.closest('input') || 
+                        target.closest('textarea') ||
+                        target.closest('button') || 
+                        target.closest('span[role="button"]')
+                      ) {
+                        return;
+                      }
+
+                      if (isSpellingMode && !showAnswer) {
+                        handleCheckSpelling();
+                      } else {
+                        setShowAnswer((value) => !value);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        const target = event.target as HTMLElement;
+                        if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+                          if (isSpellingMode && !showAnswer) {
+                            handleCheckSpelling();
+                          } else {
+                            setShowAnswer((value) => !value);
+                          }
+                        }
+                      }
                     }}
                     onTouchStart={(event) => {
                       setTouchEndX(null);
@@ -1291,20 +1468,16 @@ export default function FlashcardsSection() {
                     )}
 
                     {currentCard.nextReviewDate && !currentCard.known && (
-                        <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-700">
+                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
                     Review: {currentCard.nextReviewDate}
                   </span>
                     )}
 
                     {currentCard.reviewCount ? (
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
                     Reviews: {currentCard.reviewCount}
                   </span>
-                    ) : (
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                    New
-                  </span>
-                    )}
+                    ) : null}
 
                     {currentCard.type && (
                         <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
@@ -1320,39 +1493,43 @@ export default function FlashcardsSection() {
                   </div>
 
                   <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Dutch
+                    {studyDirection === "nl-en" ? "Dutch" : "English"}
                   </p>
 
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
                     <p className="break-words text-4xl font-bold">
-                      {currentCard.dutch}
+                      {studyDirection === "nl-en" ? currentCard.dutch : currentCard.english}
                     </p>
 
                     <span
                         role="button"
                         tabIndex={0}
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl shadow active:scale-95 transition-all duration-300 ${
-                            useSlowSpeech && currentCard.dutch === lastSpeechText
+                            useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText
                                 ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
                                 : "bg-blue-100 text-blue-700"
                         }`}
                         onClick={(event) => {
                           event.stopPropagation();
-                          handleSpeakDutch(currentCard.dutch);
+                          if (studyDirection === "nl-en") {
+                            handleSpeakDutch(currentCard.dutch);
+                          } else {
+                            speakEnglish(currentCard.english);
+                          }
                         }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.stopPropagation();
-                            handleSpeakDutch(currentCard.dutch);
+                            if (studyDirection === "nl-en") {
+                              handleSpeakDutch(currentCard.dutch);
+                            } else {
+                              speakEnglish(currentCard.english);
+                            }
                           }
                         }}
-                        aria-label={
-                          useSlowSpeech && currentCard.dutch === lastSpeechText
-                              ? "Hear slow Dutch pronunciation"
-                              : "Hear Dutch pronunciation"
-                        }
+                        aria-label="Hear pronunciation"
                     >
-                      {useSlowSpeech && currentCard.dutch === lastSpeechText ? "🐢" : "🔊"}
+                      {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText ? "🐢" : "🔊"}
                     </span>
                   </div>
 
@@ -1383,36 +1560,99 @@ export default function FlashcardsSection() {
                     ))}
                   </div>
 
+                  {/* Spelling Practice Input */}
+                  {isSpellingMode && (
+                    <div 
+                      className="mt-6 w-full max-w-sm px-4"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        type="text"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-center text-lg font-medium shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all animate-fade-in"
+                        placeholder={studyDirection === "nl-en" ? "Type English translation" : "Type Dutch translation"}
+                        value={typedAnswer}
+                        onChange={(event) => setTypedAnswer(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleCheckSpelling();
+                          }
+                        }}
+                        disabled={showAnswer}
+                      />
+                      {!showAnswer && (
+                        <button
+                          type="button"
+                          className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-150"
+                          onClick={handleCheckSpelling}
+                        >
+                          Check Spelling
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {showAnswer ? (
                       <div className="mt-6 w-full border-t pt-5">
+                        {isSpellingMode && spellingResult && (
+                          <div className={`mb-4 rounded-xl p-3 text-sm ${
+                            spellingResult.isCorrect 
+                              ? "bg-green-50 text-green-800 border border-green-200" 
+                              : "bg-red-50 text-red-800 border border-red-200"
+                          }`}>
+                            <p className="font-semibold flex items-center justify-center gap-1.5">
+                              {spellingResult.isCorrect ? "✅ Correct spelling!" : "❌ Spelling incorrect"}
+                            </p>
+                            {!spellingResult.isCorrect && (
+                              <div className="mt-2 space-y-1 text-xs">
+                                <p>
+                                  <span className="text-gray-500">Your typed answer:</span>{" "}
+                                  <span className="font-semibold line-through text-red-600">
+                                    {spellingResult.typed || "(empty)"}
+                                  </span>
+                                </p>
+                                <p>
+                                  <span className="text-gray-500">Correct spelling:</span>{" "}
+                                  <span className="font-semibold text-green-700">
+                                    {spellingResult.correct}
+                                  </span>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <p className="text-xs uppercase tracking-wide text-gray-500">
-                          {currentCard.type === "synonym" || currentCard.type === "antonym" ? "Related Word (Dutch)" : "English"}
+                          {studyDirection === "nl-en"
+                            ? (currentCard.type === "synonym" || currentCard.type === "antonym" ? "Related Word (Dutch)" : "English")
+                            : "Dutch"
+                          }
                         </p>
 
                         <div className="mt-3 flex items-center justify-center gap-3">
                           <p className="text-3xl font-semibold">
-                            {currentCard.english}
+                            {studyDirection === "nl-en" ? currentCard.english : currentCard.dutch}
                           </p>
-                          {(currentCard.type === "synonym" || currentCard.type === "antonym") && (
+                          {(studyDirection === "en-nl" || currentCard.type === "synonym" || currentCard.type === "antonym") && (
                             <span
                               role="button"
                               tabIndex={0}
                               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm shadow active:scale-95 transition-all duration-300 ${
-                                useSlowSpeech && currentCard.english === lastSpeechText
+                                useSlowSpeech && (studyDirection === "nl-en" ? currentCard.english : currentCard.dutch) === lastSpeechText
                                   ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
                                   : "bg-blue-100 text-blue-700"
                               }`}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                handleSpeakDutch(currentCard.english);
+                                if (studyDirection === "nl-en") {
+                                  speakEnglish(currentCard.english);
+                                } else {
+                                  handleSpeakDutch(currentCard.dutch);
+                                }
                               }}
-                              aria-label={
-                                useSlowSpeech && currentCard.english === lastSpeechText
-                                  ? "Hear slow pronunciation of related word"
-                                  : "Hear pronunciation of related word"
-                              }
+                              aria-label="Hear pronunciation"
                             >
-                              {useSlowSpeech && currentCard.english === lastSpeechText ? "🐢" : "🔊"}
+                              {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.english : currentCard.dutch) === lastSpeechText ? "🐢" : "🔊"}
                             </span>
                           )}
                         </div>
@@ -1427,12 +1667,16 @@ export default function FlashcardsSection() {
                           </div>
                         )}
                       </div>
+                  ) : isSpellingMode ? (
+                      <p className="mt-6 text-sm text-gray-400">
+                        Type translation and press Enter to check
+                      </p>
                   ) : (
                       <p className="mt-6 text-sm text-gray-400">
-                        Tap to see answer
+                        Tap card to see answer
                       </p>
                   )}
-                </button>
+                </div>
               </div>
 
               {studyMode === "known" ? (
@@ -1667,17 +1911,17 @@ export default function FlashcardsSection() {
                   <p className="mb-3 font-semibold">Add your own word</p>
 
                   <div className="space-y-2">
-                    <input
-                        type="text"
-                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                    <textarea
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm resize-y min-h-[60px]"
+                        rows={2}
                         placeholder="Dutch word or phrase"
                         value={manualDutch}
                         onChange={(event) => setManualDutch(event.target.value)}
                     />
 
-                    <input
-                        type="text"
-                        className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                    <textarea
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm resize-y min-h-[60px]"
+                        rows={2}
                         placeholder="English meaning"
                         value={manualEnglish}
                         onChange={(event) => setManualEnglish(event.target.value)}
@@ -1804,6 +2048,74 @@ export default function FlashcardsSection() {
               <p className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">
                 {error}
               </p>
+          )}
+        </section>
+
+        {/* Spelling Mistakes Log Section */}
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow">
+          <button
+              className="flex w-full items-center justify-between font-semibold"
+              onClick={() => setShowSpellingMistakes((value) => !value)}
+          >
+            <span>Spelling mistakes ({spellingMistakes.length})</span>
+            <span>{showSpellingMistakes ? "−" : "+"}</span>
+          </button>
+
+          {showSpellingMistakes && (
+              <div className="mt-4 space-y-4">
+                {spellingMistakes.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    No spelling mistakes recorded yet. Keep practicing!
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="flex-1 rounded-xl bg-blue-100 px-3 py-2 text-xs font-semibold text-blue-700 active:scale-95 transition"
+                        onClick={createDeckFromSpellingMistakes}
+                      >
+                        Create practice list from mistakes
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 active:scale-95 transition"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to clear your spelling mistakes history?")) {
+                            setSpellingMistakes([]);
+                          }
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    <div className="max-h-[300px] overflow-y-auto divide-y divide-gray-100">
+                      {spellingMistakes.map((card) => (
+                        <div key={card.id} className="py-2 text-sm flex items-center justify-between">
+                          <div className="text-left">
+                            <p className="font-semibold text-gray-900">{card.dutch}</p>
+                            <p className="text-xs text-gray-500">{card.english}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                              {card.type || "Vocab"}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-gray-400 hover:text-gray-600 text-lg active:scale-90 transition p-1"
+                              onClick={() => speakDutch(card.dutch)}
+                              aria-label="Hear pronunciation"
+                            >
+                              🔊
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
           )}
         </section>
       </>
