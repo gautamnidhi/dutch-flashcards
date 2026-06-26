@@ -1,0 +1,401 @@
+﻿Dutch,English,Type,Topic,ExamSkill
+Hallo,Hello,Phrase,Greetings and politeness,Speaking
+Goedemorgen,Good morning,Phrase,Greetings and politeness,Speaking
+Goedemiddag,Good afternoon,Phrase,Greetings and politeness,Speaking
+Goedenavond,Good evening,Phrase,Greetings and politeness,Speaking
+Tot ziens,See you,Phrase,Greetings and politeness,Speaking
+Tot morgen,See you tomorrow,Phrase,Greetings and politeness,Speaking
+Doei,Bye,Phrase,Greetings and politeness,Speaking
+Dank je wel,Thank you,Phrase,Greetings and politeness,Speaking
+Dank u wel,Thank you formal,Phrase,Greetings and politeness,Speaking
+Graag gedaan,You are welcome,Phrase,Greetings and politeness,Speaking
+Geen probleem,No problem,Phrase,Greetings and politeness,Speaking
+Sorry,Sorry,Phrase,Greetings and politeness,Speaking
+Het spijt me,I am sorry,Phrase,Greetings and politeness,Speaking
+Pardon,Excuse me,Phrase,Greetings and politeness,Speaking
+Alstublieft,Please formal / here you are,Phrase,Greetings and politeness,Speaking
+Alsjeblieft,Please informal / here you are,Phrase,Greetings and politeness,Speaking
+Hoe heet je?,What is your name?,Phrase,Personal information,Speaking
+Ik heet ...,My name is ...,Phrase,Personal information,Speaking
+Mijn naam is ...,My name is ...,Phrase,Personal information,Speaking
+Waar kom je vandaan?,Where are you from?,Phrase,Personal information,Speaking
+Ik kom uit India.,I come from India.,Phrase,Personal information,Speaking
+Ik kom uit Nederland.,I come from the Netherlands.,Phrase,Personal information,Speaking
+Waar woon je?,Where do you live?,Phrase,Personal information,Speaking
+Ik woon in Amstelveen.,I live in Amstelveen.,Phrase,Personal information,Speaking
+Ik woon samen met mijn familie.,I live together with my family.,Phrase,Personal information,Speaking
+Ik ben getrouwd.,I am married.,Phrase,Personal information,Speaking
+Ik ben niet getrouwd.,I am not married.,Phrase,Personal information,Speaking
+Ik heb twee kinderen.,I have two children.,Phrase,Personal information,Speaking
+Ik heb geen kinderen.,I have no children.,Phrase,Personal information,Speaking
+Ik werk als ...,I work as ...,Phrase,Personal information,Speaking
+Ik studeer Nederlands.,I study Dutch.,Phrase,Personal information,Speaking
+Ik leer Nederlands voor het examen.,I am learning Dutch for the exam.,Phrase,Personal information,Speaking
+Ik spreek een beetje Nederlands.,I speak a little Dutch.,Phrase,Personal information,Speaking
+Ik begrijp het niet.,I do not understand.,Phrase,Personal information,Speaking
+Kunt u dat herhalen?,Can you repeat that?,Phrase,Personal information,Speaking
+Kunt u langzamer spreken?,Can you speak more slowly?,Phrase,Personal information,Speaking
+Wat betekent dit?,What does this mean?,Phrase,Personal information,Speaking
+Hoe zeg je dat in het Nederlands?,How do you say that in Dutch?,Phrase,Personal information,Speaking
+wie,who,Question word,Questions,Speaking
+wat,what,Question word,Questions,Speaking
+waar,where,Question word,Questions,Speaking
+wanneer,when,Question word,Questions,Speaking
+waarom,why,Question word,Questions,Speaking
+hoe,how,Question word,Questions,Speaking
+hoeveel,how much / how many,Question word,Questions,Speaking
+welke,which,Question word,Questions,Speaking
+waarheen,to where,Question word,Questions,Speaking
+waarvandaan,from where,Question word,Questions,Speaking
+hoe laat,what time,Question word,Questions,Speaking
+hoe lang,how long,Question word,Questions,Speaking
+hoe vaak,how often,Question word,Questions,Speaking
+Ik wil graag ...,I would like ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik wil graag een afspraak maken.,I would like to make an appointment.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik moet ...,I have to ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik moet naar mijn werk.,I have to go to work.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik kan niet ...,I cannot ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik kan vandaag niet komen.,I cannot come today.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik heb ... nodig.,I need ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik heb hulp nodig.,I need help.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik zoek ...,I am looking for ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik zoek de huisarts.,I am looking for the GP.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik ga naar ...,I am going to ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik ga naar de supermarkt.,I am going to the supermarket.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik ben klaar met ...,I am finished with ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik ben bezig met ...,I am busy with ...,Sentence pattern,Useful patterns,Speaking/Writing
+Ik heb een vraag over ...,I have a question about ...,Sentence pattern,Useful patterns,Speaking/Writing
+Kunt u mij helpen?,Can you help me?,Sentence pattern,Useful patterns,Speaking/Writing
+Mag ik iets vragen?,May I ask something?,Sentence pattern,Useful patterns,Speaking/Writing
+Mag ik betalen?,May I pay?,Sentence pattern,Useful patterns,Speaking/Writing
+Mag ik water?,May I have water?,Sentence pattern,Useful patterns,Speaking/Writing
+Ik wil dit graag kopen.,I would like to buy this.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik vind het leuk.,I like it.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik vind het moeilijk.,I find it difficult.,Sentence pattern,Useful patterns,Speaking/Writing
+Ik denk dat ...,I think that ...,Sentence pattern,Useful patterns,Speaking/Writing
+Volgens mij ...,In my opinion / I think ...,Sentence pattern,Useful patterns,Speaking/Writing
+"Beste meneer,","Dear sir,",Writing phrase,Emails and messages,Writing
+"Beste mevrouw,","Dear madam,",Writing phrase,Emails and messages,Writing
+"Beste meneer of mevrouw,","Dear sir or madam,",Writing phrase,Emails and messages,Writing
+"Hallo ...,","Hello ...,",Writing phrase,Emails and messages,Writing
+"Geachte heer,","Dear sir formal,",Writing phrase,Emails and messages,Writing
+"Geachte mevrouw,","Dear madam formal,",Writing phrase,Emails and messages,Writing
+Ik schrijf u omdat ...,I am writing to you because ...,Writing phrase,Emails and messages,Writing
+Ik wil graag informatie over ...,I would like information about ...,Writing phrase,Emails and messages,Writing
+Ik kan helaas niet komen.,Unfortunately I cannot come.,Writing phrase,Emails and messages,Writing
+Ik wil de afspraak verzetten.,I want to reschedule the appointment.,Writing phrase,Emails and messages,Writing
+Kunt u mij terugbellen?,Can you call me back?,Writing phrase,Emails and messages,Writing
+Kunt u mij een e-mail sturen?,Can you send me an email?,Writing phrase,Emails and messages,Writing
+Mijn telefoonnummer is ...,My phone number is ...,Writing phrase,Emails and messages,Writing
+Mijn adres is ...,My address is ...,Writing phrase,Emails and messages,Writing
+Alvast bedankt.,Thanks in advance.,Writing phrase,Emails and messages,Writing
+"Met vriendelijke groet,","Kind regards,",Writing phrase,Emails and messages,Writing
+"Groeten,","Greetings,",Writing phrase,Emails and messages,Writing
+Ik wacht op uw antwoord.,I am waiting for your reply.,Writing phrase,Emails and messages,Writing
+Ik hoor graag van u.,I would like to hear from you.,Writing phrase,Emails and messages,Writing
+Bij voorbaat dank.,Thank you in advance formal.,Writing phrase,Emails and messages,Writing
+de afspraak,the appointment,Phrase,Appointments and time,Speaking/Writing
+een afspraak maken,to make an appointment,Phrase,Appointments and time,Speaking/Writing
+een afspraak verzetten,to reschedule an appointment,Phrase,Appointments and time,Speaking/Writing
+een afspraak afzeggen,to cancel an appointment,Phrase,Appointments and time,Speaking/Writing
+Ik heb een afspraak.,I have an appointment.,Phrase,Appointments and time,Speaking/Writing
+Ik kom voor mijn afspraak.,I am here for my appointment.,Phrase,Appointments and time,Speaking/Writing
+Ik ben te laat.,I am late.,Phrase,Appointments and time,Speaking/Writing
+Ik ben op tijd.,I am on time.,Phrase,Appointments and time,Speaking/Writing
+Wanneer kunt u?,When are you available?,Phrase,Appointments and time,Speaking/Writing
+Vandaag kan ik niet.,I cannot today.,Phrase,Appointments and time,Speaking/Writing
+Morgen kan ik wel.,Tomorrow I can.,Phrase,Appointments and time,Speaking/Writing
+Volgende week kan ik.,I can next week.,Phrase,Appointments and time,Speaking/Writing
+om negen uur,at nine o'clock,Phrase,Appointments and time,Speaking/Writing
+om half tien,at half past nine,Phrase,Appointments and time,Speaking/Writing
+om kwart over twee,at quarter past two,Phrase,Appointments and time,Speaking/Writing
+om kwart voor vijf,at quarter to five,Phrase,Appointments and time,Speaking/Writing
+de huisarts,the GP,Noun,Health and doctor,Speaking/KNM
+de tandarts,the dentist,Noun,Health and doctor,Speaking/KNM
+de apotheek,the pharmacy,Noun,Health and doctor,Speaking/KNM
+het ziekenhuis,the hospital,Noun,Health and doctor,Speaking/KNM
+de ambulance,the ambulance,Noun,Health and doctor,Speaking/KNM
+het recept,the prescription,Noun,Health and doctor,Speaking/KNM
+het medicijn,the medicine,Noun,Health and doctor,Speaking/KNM
+de pijn,the pain,Noun,Health and doctor,Speaking/KNM
+hoofdpijn,headache,Noun,Health and doctor,Speaking/KNM
+buikpijn,stomach pain,Noun,Health and doctor,Speaking/KNM
+keelpijn,sore throat,Noun,Health and doctor,Speaking/KNM
+rugpijn,back pain,Noun,Health and doctor,Speaking/KNM
+koorts,fever,Noun,Health and doctor,Speaking/KNM
+verkouden,having a cold,Adjective,Health and doctor,Speaking/KNM
+ziek,sick,Adjective,Health and doctor,Speaking/KNM
+gezond,healthy,Adjective,Health and doctor,Speaking/KNM
+moe,tired,Adjective,Health and doctor,Speaking/KNM
+misselijk,nauseous,Adjective,Health and doctor,Speaking/KNM
+duizelig,dizzy,Adjective,Health and doctor,Speaking/KNM
+Ik ben ziek.,I am sick.,Phrase,Health and doctor,Speaking/KNM
+Ik heb hoofdpijn.,I have a headache.,Phrase,Health and doctor,Speaking/KNM
+Ik heb buikpijn.,I have stomach pain.,Phrase,Health and doctor,Speaking/KNM
+Ik heb koorts.,I have a fever.,Phrase,Health and doctor,Speaking/KNM
+Ik ben verkouden.,I have a cold.,Phrase,Health and doctor,Speaking/KNM
+Ik moet naar de huisarts.,I have to go to the GP.,Phrase,Health and doctor,Speaking/KNM
+Ik heb medicijnen nodig.,I need medicine.,Phrase,Health and doctor,Speaking/KNM
+Ik heb een recept nodig.,I need a prescription.,Phrase,Health and doctor,Speaking/KNM
+de woning,the home,Noun,Housing and municipality,KNM/Speaking
+het huis,the house,Noun,Housing and municipality,KNM/Speaking
+de kamer,the room,Noun,Housing and municipality,KNM/Speaking
+de huur,the rent,Noun,Housing and municipality,KNM/Speaking
+het huurcontract,the rental contract,Noun,Housing and municipality,KNM/Speaking
+de verhuurder,the landlord,Noun,Housing and municipality,KNM/Speaking
+de makelaar,the real estate agent,Noun,Housing and municipality,KNM/Speaking
+de buren,the neighbours,Noun,Housing and municipality,KNM/Speaking
+de gemeente,the municipality,Noun,Housing and municipality,KNM/Speaking
+het gemeentehuis,the town hall,Noun,Housing and municipality,KNM/Speaking
+het adres,the address,Noun,Housing and municipality,KNM/Speaking
+de verhuizing,the move,Noun,Housing and municipality,KNM/Speaking
+verhuizen,to move house,Verb,Housing and municipality,KNM/Speaking
+huren,to rent,Verb,Housing and municipality,KNM/Speaking
+kopen,to buy,Verb,Housing and municipality,KNM/Speaking
+inschrijven,to register,Verb,Housing and municipality,KNM/Speaking
+uitschrijven,to deregister,Verb,Housing and municipality,KNM/Speaking
+Ik wil mij inschrijven.,I want to register myself.,Phrase,Housing and municipality,KNM/Speaking
+Ik ben verhuisd.,I have moved.,Phrase,Housing and municipality,KNM/Speaking
+Mijn adres is veranderd.,My address has changed.,Phrase,Housing and municipality,KNM/Speaking
+Ik zoek een woning.,I am looking for a home.,Phrase,Housing and municipality,KNM/Speaking
+De huur is te hoog.,The rent is too high.,Phrase,Housing and municipality,KNM/Speaking
+Ik heb een probleem met mijn woning.,I have a problem with my home.,Phrase,Housing and municipality,KNM/Speaking
+het werk,the work,Noun,Work and income,KNM/Speaking
+de baan,the job,Noun,Work and income,KNM/Speaking
+de werkgever,the employer,Noun,Work and income,KNM/Speaking
+de werknemer,the employee,Noun,Work and income,KNM/Speaking
+de collega,the colleague,Noun,Work and income,KNM/Speaking
+het salaris,the salary,Noun,Work and income,KNM/Speaking
+het loon,the wage,Noun,Work and income,KNM/Speaking
+bruto,gross,Adjective,Work and income,KNM/Speaking
+netto,net,Adjective,Work and income,KNM/Speaking
+de belasting,the tax,Noun,Work and income,KNM/Speaking
+de uitkering,the benefit,Noun,Work and income,KNM/Speaking
+het cv,the CV,Noun,Work and income,KNM/Speaking
+de sollicitatiebrief,the application letter,Noun,Work and income,KNM/Speaking
+het sollicitatiegesprek,the job interview,Noun,Work and income,KNM/Speaking
+solliciteren,to apply for a job,Verb,Work and income,KNM/Speaking
+werken,to work,Verb,Work and income,KNM/Speaking
+verdienen,to earn,Verb,Work and income,KNM/Speaking
+betalen,to pay,Verb,Work and income,KNM/Speaking
+Ik zoek werk.,I am looking for work.,Phrase,Work and income,KNM/Speaking
+Ik heb een baan.,I have a job.,Phrase,Work and income,KNM/Speaking
+Ik werk fulltime.,I work full-time.,Phrase,Work and income,KNM/Speaking
+Ik werk parttime.,I work part-time.,Phrase,Work and income,KNM/Speaking
+Ik ben werkloos.,I am unemployed.,Phrase,Work and income,KNM/Speaking
+Ik heb een sollicitatiegesprek.,I have a job interview.,Phrase,Work and income,KNM/Speaking
+Ik stuur mijn cv.,I send my CV.,Phrase,Work and income,KNM/Speaking
+Ik krijg salaris.,I receive salary.,Phrase,Work and income,KNM/Speaking
+de school,the school,Noun,Education and family,KNM/Speaking
+de leraar,the teacher,Noun,Education and family,KNM/Speaking
+de leerling,the pupil,Noun,Education and family,KNM/Speaking
+de ouder,the parent,Noun,Education and family,KNM/Speaking
+het kind,the child,Noun,Education and family,KNM/Speaking
+de opvang,the childcare,Noun,Education and family,KNM/Speaking
+de kinderopvang,the childcare,Noun,Education and family,KNM/Speaking
+de basisschool,the primary school,Noun,Education and family,KNM/Speaking
+de middelbare school,the secondary school,Noun,Education and family,KNM/Speaking
+de opleiding,the education/training,Noun,Education and family,KNM/Speaking
+leren,to learn,Verb,Education and family,KNM/Speaking
+studeren,to study,Verb,Education and family,KNM/Speaking
+lezen,to read,Verb,Education and family,KNM/Speaking
+schrijven,to write,Verb,Education and family,KNM/Speaking
+Ik breng mijn kind naar school.,I bring my child to school.,Phrase,Education and family,KNM/Speaking
+Mijn kind is ziek.,My child is sick.,Phrase,Education and family,KNM/Speaking
+Ik heb een gesprek met de leraar.,I have a meeting with the teacher.,Phrase,Education and family,KNM/Speaking
+Ik volg een cursus Nederlands.,I take a Dutch course.,Phrase,Education and family,KNM/Speaking
+Ik moet huiswerk maken.,I have to do homework.,Phrase,Education and family,KNM/Speaking
+de fiets,the bicycle,Noun,Transport and directions,Speaking/Listening
+de auto,the car,Noun,Transport and directions,Speaking/Listening
+de bus,the bus,Noun,Transport and directions,Speaking/Listening
+de trein,the train,Noun,Transport and directions,Speaking/Listening
+de tram,the tram,Noun,Transport and directions,Speaking/Listening
+de metro,the metro,Noun,Transport and directions,Speaking/Listening
+het station,the station,Noun,Transport and directions,Speaking/Listening
+de bushalte,the bus stop,Noun,Transport and directions,Speaking/Listening
+het kaartje,the ticket,Noun,Transport and directions,Speaking/Listening
+de ov-chipkaart,the public transport card,Noun,Transport and directions,Speaking/Listening
+instappen,to get in/board,Verb,Transport and directions,Speaking/Listening
+uitstappen,to get off,Verb,Transport and directions,Speaking/Listening
+overstappen,to transfer,Verb,Transport and directions,Speaking/Listening
+reizen,to travel,Verb,Transport and directions,Speaking/Listening
+links,left,Direction,Transport and directions,Speaking/Listening
+rechts,right,Direction,Transport and directions,Speaking/Listening
+rechtdoor,straight ahead,Direction,Transport and directions,Speaking/Listening
+dichtbij,nearby,Adverb,Transport and directions,Speaking/Listening
+ver weg,far away,Adverb,Transport and directions,Speaking/Listening
+Waar is het station?,Where is the station?,Phrase,Transport and directions,Speaking/Listening
+Waar is de bushalte?,Where is the bus stop?,Phrase,Transport and directions,Speaking/Listening
+Welke bus moet ik nemen?,Which bus should I take?,Phrase,Transport and directions,Speaking/Listening
+Ik neem de trein.,I take the train.,Phrase,Transport and directions,Speaking/Listening
+Ik stap hier uit.,I get off here.,Phrase,Transport and directions,Speaking/Listening
+Ik moet overstappen.,I have to transfer.,Phrase,Transport and directions,Speaking/Listening
+de supermarkt,the supermarket,Noun,Shopping and food,Speaking/Listening
+de winkel,the shop,Noun,Shopping and food,Speaking/Listening
+de markt,the market,Noun,Shopping and food,Speaking/Listening
+de kassa,the checkout,Noun,Shopping and food,Speaking/Listening
+de bon,the receipt,Noun,Shopping and food,Speaking/Listening
+de tas,the bag,Noun,Shopping and food,Speaking/Listening
+het brood,the bread,Noun,Shopping and food,Speaking/Listening
+de melk,the milk,Noun,Shopping and food,Speaking/Listening
+de kaas,the cheese,Noun,Shopping and food,Speaking/Listening
+het fruit,the fruit,Noun,Shopping and food,Speaking/Listening
+de groente,the vegetables,Noun,Shopping and food,Speaking/Listening
+de appel,the apple,Noun,Shopping and food,Speaking/Listening
+de banaan,the banana,Noun,Shopping and food,Speaking/Listening
+de aardappel,the potato,Noun,Shopping and food,Speaking/Listening
+pinnen,to pay by card,Verb,Shopping and food,Speaking/Listening
+contant betalen,to pay cash,Phrase,Shopping and food,Speaking/Listening
+met pin betalen,to pay by card,Phrase,Shopping and food,Speaking/Listening
+Hoeveel kost het?,How much does it cost?,Phrase,Shopping and food,Speaking/Listening
+Ik wil dit kopen.,I want to buy this.,Phrase,Shopping and food,Speaking/Listening
+Heeft u een tas?,Do you have a bag?,Phrase,Shopping and food,Speaking/Listening
+Dat is te duur.,That is too expensive.,Phrase,Shopping and food,Speaking/Listening
+Heeft u iets goedkoper?,Do you have something cheaper?,Phrase,Shopping and food,Speaking/Listening
+"De rekening, alstublieft.","The bill, please.",Phrase,Shopping and food,Speaking/Listening
+Eet smakelijk.,Enjoy your meal.,Phrase,Shopping and food,Speaking/Listening
+het geld,the money,Noun,Money and administration,KNM/Writing
+de bank,the bank,Noun,Money and administration,KNM/Writing
+de rekening,the account/bill,Noun,Money and administration,KNM/Writing
+de verzekering,the insurance,Noun,Money and administration,KNM/Writing
+de zorgverzekering,the health insurance,Noun,Money and administration,KNM/Writing
+de belastingdienst,the tax authority,Noun,Money and administration,KNM/Writing
+de toeslag,the allowance,Noun,Money and administration,KNM/Writing
+de huurtoeslag,the rent allowance,Noun,Money and administration,KNM/Writing
+de zorgtoeslag,the healthcare allowance,Noun,Money and administration,KNM/Writing
+de DigiD,the DigiD,Noun,Money and administration,KNM/Writing
+het formulier,the form,Noun,Money and administration,KNM/Writing
+het paspoort,the passport,Noun,Money and administration,KNM/Writing
+de identiteitskaart,the identity card,Noun,Money and administration,KNM/Writing
+het rijbewijs,the driving license,Noun,Money and administration,KNM/Writing
+aanvragen,to apply for/request,Verb,Money and administration,KNM/Writing
+invullen,to fill in,Verb,Money and administration,KNM/Writing
+ondertekenen,to sign,Verb,Money and administration,KNM/Writing
+Ik moet een formulier invullen.,I have to fill in a form.,Phrase,Money and administration,KNM/Writing
+Ik heb mijn DigiD nodig.,I need my DigiD.,Phrase,Money and administration,KNM/Writing
+Ik wil zorgtoeslag aanvragen.,I want to apply for healthcare allowance.,Phrase,Money and administration,KNM/Writing
+Ik heb een vraag over mijn rekening.,I have a question about my bill/account.,Phrase,Money and administration,KNM/Writing
+vandaag,today,Adverb,Time and dates,Listening/Speaking
+morgen,tomorrow,Adverb,Time and dates,Listening/Speaking
+gisteren,yesterday,Adverb,Time and dates,Listening/Speaking
+nu,now,Adverb,Time and dates,Listening/Speaking
+straks,later soon,Adverb,Time and dates,Listening/Speaking
+later,later,Adverb,Time and dates,Listening/Speaking
+de ochtend,the morning,Noun,Time and dates,Listening/Speaking
+de middag,the afternoon,Noun,Time and dates,Listening/Speaking
+de avond,the evening,Noun,Time and dates,Listening/Speaking
+de nacht,the night,Noun,Time and dates,Listening/Speaking
+maandag,Monday,Noun,Time and dates,Listening/Speaking
+dinsdag,Tuesday,Noun,Time and dates,Listening/Speaking
+woensdag,Wednesday,Noun,Time and dates,Listening/Speaking
+donderdag,Thursday,Noun,Time and dates,Listening/Speaking
+vrijdag,Friday,Noun,Time and dates,Listening/Speaking
+zaterdag,Saturday,Noun,Time and dates,Listening/Speaking
+zondag,Sunday,Noun,Time and dates,Listening/Speaking
+januari,January,Noun,Time and dates,Listening/Speaking
+februari,February,Noun,Time and dates,Listening/Speaking
+maart,March,Noun,Time and dates,Listening/Speaking
+april,April,Noun,Time and dates,Listening/Speaking
+mei,May,Noun,Time and dates,Listening/Speaking
+juni,June,Noun,Time and dates,Listening/Speaking
+juli,July,Noun,Time and dates,Listening/Speaking
+augustus,August,Noun,Time and dates,Listening/Speaking
+september,September,Noun,Time and dates,Listening/Speaking
+oktober,October,Noun,Time and dates,Listening/Speaking
+november,November,Noun,Time and dates,Listening/Speaking
+december,December,Noun,Time and dates,Listening/Speaking
+Hoe laat is het?,What time is it?,Phrase,Time and dates,Listening/Speaking
+Het is tien uur.,It is ten o'clock.,Phrase,Time and dates,Listening/Speaking
+Het is half acht.,It is half past seven.,Phrase,Time and dates,Listening/Speaking
+Ik kom om negen uur.,I come at nine o'clock.,Phrase,Time and dates,Listening/Speaking
+zijn,to be,Verb,Common verbs,All skills
+hebben,to have,Verb,Common verbs,All skills
+gaan,to go,Verb,Common verbs,All skills
+komen,to come,Verb,Common verbs,All skills
+doen,to do,Verb,Common verbs,All skills
+maken,to make,Verb,Common verbs,All skills
+wonen,to live,Verb,Common verbs,All skills
+spreken,to speak,Verb,Common verbs,All skills
+vragen,to ask,Verb,Common verbs,All skills
+antwoorden,to answer,Verb,Common verbs,All skills
+begrijpen,to understand,Verb,Common verbs,All skills
+weten,to know a fact,Verb,Common verbs,All skills
+kennen,to know/be familiar with,Verb,Common verbs,All skills
+kijken,to watch/look,Verb,Common verbs,All skills
+zien,to see,Verb,Common verbs,All skills
+horen,to hear,Verb,Common verbs,All skills
+luisteren,to listen,Verb,Common verbs,All skills
+eten,to eat,Verb,Common verbs,All skills
+drinken,to drink,Verb,Common verbs,All skills
+zoeken,to search,Verb,Common verbs,All skills
+vinden,to find/think,Verb,Common verbs,All skills
+helpen,to help,Verb,Common verbs,All skills
+bellen,to call,Verb,Common verbs,All skills
+wachten,to wait,Verb,Common verbs,All skills
+beginnen,to begin,Verb,Common verbs,All skills
+stoppen,to stop,Verb,Common verbs,All skills
+openen,to open,Verb,Common verbs,All skills
+sluiten,to close,Verb,Common verbs,All skills
+nemen,to take,Verb,Common verbs,All skills
+geven,to give,Verb,Common verbs,All skills
+krijgen,to get/receive,Verb,Common verbs,All skills
+brengen,to bring,Verb,Common verbs,All skills
+halen,to pick up,Verb,Common verbs,All skills
+goed,good,Adjective/Adverb,Descriptions,Speaking/Writing
+slecht,bad,Adjective/Adverb,Descriptions,Speaking/Writing
+mooi,beautiful,Adjective/Adverb,Descriptions,Speaking/Writing
+lelijk,ugly,Adjective/Adverb,Descriptions,Speaking/Writing
+groot,big,Adjective/Adverb,Descriptions,Speaking/Writing
+klein,small,Adjective/Adverb,Descriptions,Speaking/Writing
+nieuw,new,Adjective/Adverb,Descriptions,Speaking/Writing
+oud,old,Adjective/Adverb,Descriptions,Speaking/Writing
+jong,young,Adjective/Adverb,Descriptions,Speaking/Writing
+warm,warm,Adjective/Adverb,Descriptions,Speaking/Writing
+koud,cold,Adjective/Adverb,Descriptions,Speaking/Writing
+duur,expensive,Adjective/Adverb,Descriptions,Speaking/Writing
+goedkoop,cheap,Adjective/Adverb,Descriptions,Speaking/Writing
+makkelijk,easy,Adjective/Adverb,Descriptions,Speaking/Writing
+moeilijk,difficult,Adjective/Adverb,Descriptions,Speaking/Writing
+belangrijk,important,Adjective/Adverb,Descriptions,Speaking/Writing
+nodig,needed,Adjective/Adverb,Descriptions,Speaking/Writing
+druk,busy/crowded,Adjective/Adverb,Descriptions,Speaking/Writing
+rustig,quiet/calm,Adjective/Adverb,Descriptions,Speaking/Writing
+snel,fast,Adjective/Adverb,Descriptions,Speaking/Writing
+langzaam,slow,Adjective/Adverb,Descriptions,Speaking/Writing
+vroeg,early,Adjective/Adverb,Descriptions,Speaking/Writing
+laat,late,Adjective/Adverb,Descriptions,Speaking/Writing
+blij,happy,Adjective/Adverb,Descriptions,Speaking/Writing
+verdrietig,sad,Adjective/Adverb,Descriptions,Speaking/Writing
+boos,angry,Adjective/Adverb,Descriptions,Speaking/Writing
+ingang,entrance,Noun,Signs and notices,Reading/Listening
+uitgang,exit,Noun,Signs and notices,Reading/Listening
+open,open,Adjective,Signs and notices,Reading/Listening
+gesloten,closed,Adjective,Signs and notices,Reading/Listening
+verboden,forbidden,Adjective,Signs and notices,Reading/Listening
+gratis,free of charge,Adjective,Signs and notices,Reading/Listening
+korting,discount,Noun,Signs and notices,Reading/Listening
+uitverkoop,sale,Noun,Signs and notices,Reading/Listening
+spoed,urgent,Noun,Signs and notices,Reading/Listening
+noodgeval,emergency,Noun,Signs and notices,Reading/Listening
+wachtkamer,waiting room,Noun,Signs and notices,Reading/Listening
+balie,desk/counter,Noun,Signs and notices,Reading/Listening
+informatie,information,Noun,Signs and notices,Reading/Listening
+klantenservice,customer service,Noun,Signs and notices,Reading/Listening
+openingstijden,opening hours,Noun,Signs and notices,Reading/Listening
+gesprek,conversation,Noun,Signs and notices,Reading/Listening
+Nederland,the Netherlands,Noun,KNM society,KNM
+de koning,the king,Noun,KNM society,KNM
+de regering,the government,Noun,KNM society,KNM
+de wet,the law,Noun,KNM society,KNM
+stemmen,to vote,Verb,KNM society,KNM
+de verkiezingen,the elections,Noun,KNM society,KNM
+vrijheid,freedom,Noun,KNM society,KNM
+gelijkwaardig,equal,Adjective,KNM society,KNM
+respect,respect,Noun,KNM society,KNM
+de politie,the police,Noun,KNM society,KNM
+de brandweer,the fire brigade,Noun,KNM society,KNM
+de schoolplicht,compulsory education,Noun,KNM society,KNM
+de zorgverzekering,health insurance,Noun,KNM society,KNM
+de inburgering,integration,Noun,KNM society,KNM
+het examen,the exam,Noun,KNM society,KNM
+het diploma,the diploma,Noun,KNM society,KNM

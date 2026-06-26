@@ -69,6 +69,106 @@ function migrateRelationCards(decks: Deck[]): Deck[] {
   });
 }
 
+function parseMultiSheetVocab(workbook: XLSX.WorkBook): Flashcard[] {
+  const cards: Flashcard[] = [];
+  const cleanWord = (w: any) => String(w || '').replace(/^\uFEFF/, '').trim();
+
+  workbook.SheetNames.forEach(sheetName => {
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+    if (rows.length === 0) return;
+
+    if (sheetName === 'Sheet4') {
+      rows.forEach(row => {
+        const text = cleanWord(row[0]);
+        if (!text) return;
+        const parts = text.split(/[-–—\\]/);
+        if (parts.length >= 2) {
+          const dutch = cleanWord(parts[0]);
+          const english = cleanWord(parts[1]);
+          if (dutch && english && 
+              dutch.toLowerCase() !== 'nederlands' && 
+              english.toLowerCase() !== 'english') {
+            cards.push({
+              id: createId(),
+              dutch,
+              english,
+              known: false,
+              difficult: false,
+              type: 'Vocabulary',
+              topic: 'Miscellaneous',
+              examSkill: '',
+              reviewCount: 0,
+              nextReviewDate: '',
+              lastReviewedDate: '',
+              ease: DEFAULT_EASE,
+              intervalDays: 0,
+            });
+          }
+        }
+      });
+      return;
+    }
+
+    // Determine the max columns in this sheet
+    let maxCols = 0;
+    rows.forEach(row => {
+      if (row.length > maxCols) {
+        maxCols = row.length;
+      }
+    });
+
+    // Process in pairs of columns (colIdx and colIdx + 1)
+    for (let colIdx = 0; colIdx < maxCols; colIdx += 2) {
+      // Find category name from Row 0
+      let category = cleanWord(rows[0][colIdx]);
+      const catLower = category.toLowerCase();
+      if (!category || 
+          catLower === 'nederlands' || 
+          catLower === 'english' || 
+          catLower === 'engels' || 
+          catLower === 'dutch') {
+        category = 'Vocabulary';
+      }
+
+      // Loop through all rows for this column pair
+      rows.forEach((row, rowIdx) => {
+        const dutchVal = cleanWord(row[colIdx]);
+        const englishVal = cleanWord(row[colIdx + 1]);
+
+        if (dutchVal && englishVal) {
+          const dLower = dutchVal.toLowerCase();
+          const eLower = englishVal.toLowerCase();
+
+          // Skip header placeholders
+          if (dLower === 'nederlands' && eLower === 'english') return;
+          if (dLower === 'nederlands' && eLower === 'engels') return;
+          if (dLower === 'dutch' && eLower === 'english') return;
+          if (dLower === category.toLowerCase()) return; // skip header itself if matched
+
+          cards.push({
+            id: createId(),
+            dutch: dutchVal,
+            english: englishVal,
+            known: false,
+            difficult: false,
+            type: category,
+            topic: sheetName,
+            examSkill: '',
+            reviewCount: 0,
+            nextReviewDate: '',
+            lastReviewedDate: '',
+            ease: DEFAULT_EASE,
+            intervalDays: 0,
+          });
+        }
+      });
+    }
+  });
+
+  return cards;
+}
+
 export default function FlashcardsSection() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState("");
@@ -109,6 +209,127 @@ export default function FlashcardsSection() {
     return deck.name.trim().toLowerCase() === DIFFICULT_LIST_NAME.toLowerCase();
   }
 
+  const loadDefaultLists = async (currentDecks: Deck[]) => {
+    try {
+      const defaultLists = [
+        {
+          name: "Dutch Vocabulary",
+          path: "/lists/dutch_vocabulary.xlsx"
+        },
+        {
+          name: "Synonyms & Antonyms",
+          path: "/lists/synonyms_antonyms.xlsx"
+        },
+        {
+          name: "Inburgering Practice Test",
+          path: "/lists/inburgering_practice_test.xlsx"
+        },
+        {
+          name: "A2 Exam Prep",
+          path: "/lists/a2_exam_prep.csv"
+        },
+        {
+          name: "1000 Common Words",
+          path: "/lists/common_1000_words.csv"
+        },
+        {
+          name: "Daily Phrases (Easy)",
+          path: "/lists/daily_phrases.csv"
+        },
+        {
+          name: "Merged Flashcards",
+          path: "/lists/merged_flashcards.csv"
+        },
+        {
+          name: "Basic Dutch-English",
+          path: "/lists/basic_vocabulary.csv"
+        },
+        {
+          name: "Dutch Numbers",
+          path: "/lists/number_translations.xlsx"
+        },
+        {
+          name: "Dutch Time Words",
+          path: "/lists/time_words.xlsx"
+        }
+      ];
+
+      const oldDefaultNames = [
+        "Dutch Relations (Click Import)",
+        "Most Used Synonyms & Antonyms",
+        "Inburgering A2 Practice Test",
+        "A2 Dutch Exam Prep",
+        "1000 Most Common Words",
+        "Daily Phrases (Easy)",
+        "Merged Dutch-English Cards",
+        "Basic Dutch-English Cards",
+        "Synonyms & Antonyms (Standard)",
+        "Dutch Numbers",
+        "Dutch Time Words"
+      ];
+
+      const defaultNames = defaultLists.map(l => l.name);
+
+      // Clean up old default lists to avoid duplicates with the new readable name list format
+      let updatedDecks = currentDecks.filter(
+        (deck) => !oldDefaultNames.includes(deck.name) && !defaultNames.includes(deck.name)
+      );
+
+      for (const list of defaultLists) {
+        const res = await fetch(list.path);
+        if (!res.ok) continue;
+        const arrayBuffer = await res.arrayBuffer();
+        
+        let parsedCards: Flashcard[] = [];
+        if (list.path.endsWith('.csv')) {
+          const decoder = new TextDecoder("utf-8");
+          const text = decoder.decode(arrayBuffer);
+          const results = Papa.parse<Record<string, unknown>>(text, {
+            header: true,
+            skipEmptyLines: true,
+            delimiter: "",
+            delimitersToGuess: [",", ";", "\t", "|"],
+            transformHeader: (header) =>
+              header.replace(/^\uFEFF/, "").trim().toLowerCase(),
+          });
+          parsedCards = rowsToCards(results.data);
+        } else {
+          const workbook = XLSX.read(arrayBuffer);
+          if (workbook.SheetNames.includes("Sheet1") && workbook.SheetNames.includes("Sheet2")) {
+            parsedCards = parseMultiSheetVocab(workbook);
+          } else {
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+            parsedCards = rowsToCards(rows);
+          }
+        }
+        
+        if (parsedCards.length > 0) {
+          const newDeck: Deck = {
+            id: createId(),
+            name: list.name,
+            cards: parsedCards,
+            createdAt: new Date().toISOString()
+          };
+          updatedDecks = [newDeck, ...updatedDecks];
+        }
+      }
+
+      setDecks(updatedDecks);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks));
+      localStorage.setItem("dutch-default-lists-loaded-v7", "true");
+      
+      if (updatedDecks.length > 0) {
+        // Select the newly loaded relation deck as default
+        const relationDeck = updatedDecks.find(d => !isDifficultList(d));
+        setSelectedDeckId(relationDeck ? relationDeck.id : updatedDecks[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load default lists", err);
+    }
+  };
+
   // Load decks on mount
   useEffect(() => {
     const savedDecks = localStorage.getItem(STORAGE_KEY);
@@ -135,10 +356,14 @@ export default function FlashcardsSection() {
       parsedDecks = [...parsedDecks, initialDifficultDeck];
     }
 
-    setDecks(parsedDecks);
-
-    if (parsedDecks.length > 0) {
-      setSelectedDeckId(parsedDecks[0].id);
+    const defaultsLoaded = localStorage.getItem("dutch-default-lists-loaded-v7");
+    if (!defaultsLoaded) {
+      loadDefaultLists(parsedDecks);
+    } else {
+      setDecks(parsedDecks);
+      if (parsedDecks.length > 0) {
+        setSelectedDeckId(parsedDecks[0].id);
+      }
     }
 
     const savedDailyLimit = localStorage.getItem(DAILY_LIMIT_KEY);
@@ -150,6 +375,7 @@ export default function FlashcardsSection() {
     if (savedSpeechRate) {
       setSpeechRate(parseFloat(savedSpeechRate));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const changeSpeechRate = (rate: number) => {
@@ -425,14 +651,14 @@ export default function FlashcardsSection() {
       } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-
-        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-            worksheet
-        );
-
-        parsedCards = rowsToCards(rows);
+        if (workbook.SheetNames.includes("Sheet1") && workbook.SheetNames.includes("Sheet2")) {
+          parsedCards = parseMultiSheetVocab(workbook);
+        } else {
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+          parsedCards = rowsToCards(rows);
+        }
       } else {
         setError("Please upload a CSV or Excel file.");
         return;
