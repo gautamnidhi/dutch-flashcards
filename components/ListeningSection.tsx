@@ -24,6 +24,7 @@ export default function ListeningSection() {
   const [audioPlaybackRate, setAudioPlaybackRate] = useState(1);
   const [audioTouchStartX, setAudioTouchStartX] = useState<number | null>(null);
   const [audioTouchEndX, setAudioTouchEndX] = useState<number | null>(null);
+  const [autoplay, setAutoplay] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioPlayRequestRef = useRef(0);
@@ -34,12 +35,24 @@ export default function ListeningSection() {
     if (savedLessons) {
       try {
         const parsedLessons = normalizeSavedLessons(JSON.parse(savedLessons));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setAudioLessons(sortAudioLessons(parsedLessons));
       } catch {
         localStorage.removeItem(AUDIO_LESSONS_KEY);
       }
     }
+
+    const savedAutoplay = localStorage.getItem("audio_autoplay");
+    if (savedAutoplay !== null) {
+      setAutoplay(savedAutoplay === "true");
+    }
   }, []);
+
+  const toggleAutoplay = () => {
+    const nextAutoplay = !autoplay;
+    setAutoplay(nextAutoplay);
+    localStorage.setItem("audio_autoplay", String(nextAutoplay));
+  };
 
   useEffect(() => {
     localStorage.setItem(AUDIO_LESSONS_KEY, JSON.stringify(audioLessons));
@@ -493,8 +506,26 @@ export default function ListeningSection() {
                   }}
                   onPlay={() => setIsAudioPlaying(true)}
                   onPause={() => setIsAudioPlaying(false)}
-                  onEnded={() => setIsAudioPlaying(false)}
+                  onEnded={() => {
+                    setIsAudioPlaying(false);
+                    if (autoplay) {
+                      playRelativeAudioLesson("next");
+                    }
+                  }}
               />
+
+              <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+                <span className="text-sm font-medium">Autoplay next</span>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                      type="checkbox"
+                      checked={autoplay}
+                      onChange={toggleAutoplay}
+                      className="peer sr-only"
+                  />
+                  <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-gray-900 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none" />
+                </label>
+              </div>
 
               <div className="mt-3">
                 <div className="mb-2 flex items-center justify-between text-sm">
