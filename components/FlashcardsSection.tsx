@@ -198,6 +198,7 @@ export default function FlashcardsSection() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState("");
   const [shuffledGlobalCards, setShuffledGlobalCards] = useState<Flashcard[] | null>(null);
+  const [deckIndices, setDeckIndices] = useState<Record<string, number>>({});
   const [deckName, setDeckName] = useState("");
   const [pendingCards, setPendingCards] = useState<Flashcard[]>([]);
   const [pendingFileName, setPendingFileName] = useState("");
@@ -321,7 +322,7 @@ export default function FlashcardsSection() {
       );
 
       for (const list of defaultLists) {
-        const res = await fetch(list.path);
+        const res = await fetch(`${list.path}?v=14`);
         if (!res.ok) continue;
         const arrayBuffer = await res.arrayBuffer();
         
@@ -363,12 +364,25 @@ export default function FlashcardsSection() {
 
       setDecks(updatedDecks);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDecks));
-      localStorage.setItem("dutch-default-lists-loaded-v10", "true");
+      localStorage.setItem("dutch-default-lists-loaded-v14", "true");
       
+      const savedDeckId = localStorage.getItem("dutch-selected-deck-id");
+      const savedIndicesText = localStorage.getItem("dutch-deck-indices");
+
       if (updatedDecks.length > 0) {
-        // Select the newly loaded relation deck as default
-        const relationDeck = updatedDecks.find(d => !isDifficultList(d));
-        setSelectedDeckId(relationDeck ? relationDeck.id : updatedDecks[0].id);
+        const targetId = savedDeckId && (updatedDecks.some((d) => d.id === savedDeckId) || savedDeckId === "global-practice")
+          ? savedDeckId
+          : (updatedDecks.find((d) => !isDifficultList(d))?.id || updatedDecks[0].id);
+        setSelectedDeckId(targetId);
+
+        if (savedIndicesText) {
+          try {
+            const parsedIndices = JSON.parse(savedIndicesText);
+            if (parsedIndices[targetId] !== undefined) {
+              setCurrentIndex(parsedIndices[targetId]);
+            }
+          } catch {}
+        }
       }
     } catch (err) {
       console.error("Failed to load default lists", err);
@@ -401,13 +415,45 @@ export default function FlashcardsSection() {
       parsedDecks = [...parsedDecks, initialDifficultDeck];
     }
 
-    const defaultsLoaded = localStorage.getItem("dutch-default-lists-loaded-v10");
+    const savedDeckId = localStorage.getItem("dutch-selected-deck-id");
+    const savedStudyMode = localStorage.getItem("dutch-study-mode");
+    const savedStudyDirection = localStorage.getItem("dutch-study-direction");
+    const savedIndicesText = localStorage.getItem("dutch-deck-indices");
+
+    if (savedStudyMode) {
+      setStudyMode(savedStudyMode as StudyMode);
+    }
+    if (savedStudyDirection) {
+      setStudyDirection(savedStudyDirection as any);
+    }
+    if (savedIndicesText) {
+      try {
+        const parsedIndices = JSON.parse(savedIndicesText);
+        setDeckIndices(parsedIndices);
+      } catch (e) {
+        console.error("Failed to parse deck indices", e);
+      }
+    }
+
+    const defaultsLoaded = localStorage.getItem("dutch-default-lists-loaded-v14");
     if (!defaultsLoaded) {
       loadDefaultLists(parsedDecks);
     } else {
       setDecks(parsedDecks);
       if (parsedDecks.length > 0) {
-        setSelectedDeckId(parsedDecks[0].id);
+        const targetId = savedDeckId && (parsedDecks.some((d) => d.id === savedDeckId) || savedDeckId === "global-practice")
+          ? savedDeckId
+          : parsedDecks[0].id;
+        setSelectedDeckId(targetId);
+
+        if (savedIndicesText) {
+          try {
+            const parsedIndices = JSON.parse(savedIndicesText);
+            if (parsedIndices[targetId] !== undefined) {
+              setCurrentIndex(parsedIndices[targetId]);
+            }
+          } catch {}
+        }
       }
     }
 
@@ -431,6 +477,31 @@ export default function FlashcardsSection() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Save selected deck, study mode, direction, and indices map when they change
+  useEffect(() => {
+    if (selectedDeckId) {
+      localStorage.setItem("dutch-selected-deck-id", selectedDeckId);
+    }
+  }, [selectedDeckId]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-study-mode", studyMode);
+  }, [studyMode]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-study-direction", studyDirection);
+  }, [studyDirection]);
+
+  useEffect(() => {
+    if (!selectedDeckId) return;
+    setDeckIndices((prev) => {
+      if (prev[selectedDeckId] === currentIndex) return prev;
+      const next = { ...prev, [selectedDeckId]: currentIndex };
+      localStorage.setItem("dutch-deck-indices", JSON.stringify(next));
+      return next;
+    });
+  }, [currentIndex, selectedDeckId]);
 
   const changeSpeechRate = (rate: number) => {
     setSpeechRate(rate);
@@ -562,6 +633,22 @@ export default function FlashcardsSection() {
   }, [selectedCards, studyMode, todayQueueIdsBySession, todaySessionKey]);
 
   const currentCard = visibleCards[currentIndex];
+
+  const cardDescription = useMemo(() => {
+    if (!currentCard || !currentCard.english) return "";
+    const parts = currentCard.english.split(/Examples?:/i);
+    return parts[0].trim();
+  }, [currentCard]);
+
+  const exampleDutchWords = useMemo(() => {
+    if (!currentCard || !currentCard.english) return [];
+    const parts = currentCard.english.split(/Examples?:/i);
+    if (parts.length <= 1) return [];
+
+    const examplesText = parts[1];
+    const matches = [...examplesText.matchAll(/'([^']+)'\s*\([^)]+\)/g)];
+    return matches.map((m) => m[1].trim());
+  }, [currentCard]);
 
   // Create a memoized mapping of Dutch words to their English meanings
   const wordMeaningsMap = useMemo(() => {
@@ -1366,7 +1453,7 @@ export default function FlashcardsSection() {
     setSelectedDeckId(deckId);
     setShuffledGlobalCards(null); // Reset global shuffle when deck changes
     setStudyMode("practice");
-    setCurrentIndex(0);
+    setCurrentIndex(deckIndices[deckId] || 0);
     setShowAnswer(false);
     setMessage("");
   }
@@ -1942,14 +2029,14 @@ export default function FlashcardsSection() {
 
                       <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
                         <p className="break-words text-4xl font-bold">
-                          {studyDirection === "nl-en" ? currentCard.dutch : currentCard.english}
+                          {studyDirection === "nl-en" ? currentCard.dutch : cardDescription}
                         </p>
 
                         <span
                             role="button"
                             tabIndex={0}
                             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl shadow active:scale-95 transition-all duration-300 ${
-                                useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText
+                                useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : cardDescription) === lastSpeechText
                                     ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
                                     : "bg-blue-100 text-blue-700"
                             }`}
@@ -1958,7 +2045,7 @@ export default function FlashcardsSection() {
                               if (studyDirection === "nl-en") {
                                 handleSpeakDutch(currentCard.dutch);
                               } else {
-                                speakEnglish(currentCard.english);
+                                speakEnglish(cardDescription);
                               }
                             }}
                             onKeyDown={(event) => {
@@ -1967,13 +2054,13 @@ export default function FlashcardsSection() {
                                 if (studyDirection === "nl-en") {
                                   handleSpeakDutch(currentCard.dutch);
                                 } else {
-                                  speakEnglish(currentCard.english);
+                                  speakEnglish(cardDescription);
                                 }
                               }
                             }}
                             aria-label="Hear pronunciation"
                         >
-                          {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : currentCard.english) === lastSpeechText ? "🐢" : "🔊"}
+                          {useSlowSpeech && (studyDirection === "nl-en" ? currentCard.dutch : cardDescription) === lastSpeechText ? "🐢" : "🔊"}
                         </span>
                       </div>
 
@@ -2071,7 +2158,7 @@ export default function FlashcardsSection() {
 
                             <div className="mt-3 flex items-center justify-center gap-3">
                               <p className="text-3xl font-semibold">
-                                {studyDirection === "nl-en" ? currentCard.english : currentCard.dutch}
+                                {studyDirection === "nl-en" ? cardDescription : currentCard.dutch}
                               </p>
                               {studyDirection === "en-nl" && (
                                 <span
@@ -2091,25 +2178,7 @@ export default function FlashcardsSection() {
                                   {useSlowSpeech && currentCard.dutch === lastSpeechText ? "🐢" : "🔊"}
                                 </span>
                               )}
-                              {studyDirection === "nl-en" && (
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm shadow active:scale-95 transition-all duration-300 ${
-                                    useSlowSpeech && currentCard.english === lastSpeechText
-                                      ? "bg-orange-100 text-orange-700 scale-105 ring-2 ring-orange-300"
-                                      : "bg-blue-100 text-blue-700"
-                                  }`}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    speakEnglish(currentCard.english);
-                                  }}
-                                  aria-label="Hear pronunciation"
-                                >
-                                  {useSlowSpeech && currentCard.english === lastSpeechText ? "🐢" : "🔊"}
-                                </span>
-                              )}
-                            </div>
+                             </div>
 
                             {currentCard.topic && (
                               <div className="mt-2 text-sm text-gray-500">
@@ -2118,6 +2187,28 @@ export default function FlashcardsSection() {
                                 ) : (
                                   <p>Topic: {currentCard.topic}</p>
                                 )}
+                              </div>
+                            )}
+
+                            {exampleDutchWords.length > 0 && (
+                              <div className="mt-4 border-t pt-4 text-left w-full">
+                                <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Hear Examples:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {exampleDutchWords.map((word) => (
+                                    <button
+                                      key={word}
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleSpeakDutch(word);
+                                      }}
+                                      className="flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 active:scale-95 transition-all duration-150"
+                                    >
+                                      <span>🔊</span>
+                                      <span className="font-bold">{word}</span>
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>

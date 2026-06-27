@@ -112,7 +112,11 @@ export function speakDutch(text: string, rate: number = 0.6) {
 
     window.speechSynthesis.cancel();
 
-    const cleanText = text.trim();
+    // Replace slashes (like 'ou / au' or 'ij / ei') with commas to introduce a pause 
+    // instead of pronouncing the word 'slash' or 'schuine streep' literally.
+    const cleanText = text
+        .replace(/\s*[\/\\]\s*/g, ", ")
+        .trim();
     if (!cleanText) return;
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -120,13 +124,25 @@ export function speakDutch(text: string, rate: number = 0.6) {
     utterance.rate = rate;
     utterance.pitch = 1;
 
-    const voices = window.speechSynthesis.getVoices();
-    const nlVoices = voices.filter(
+    let voices = window.speechSynthesis.getVoices();
+    let nlVoices = voices.filter(
         (voice) =>
             voice.lang.toLowerCase() === "nl-nl" ||
             voice.lang.toLowerCase().startsWith("nl-") ||
             voice.lang.toLowerCase() === "nl"
     );
+
+    // If voices are empty (common on first call in Chrome), try to reload
+    if (nlVoices.length === 0) {
+        window.speechSynthesis.getVoices();
+        voices = window.speechSynthesis.getVoices();
+        nlVoices = voices.filter(
+            (voice) =>
+                voice.lang.toLowerCase() === "nl-nl" ||
+                voice.lang.toLowerCase().startsWith("nl-") ||
+                voice.lang.toLowerCase() === "nl"
+        );
+    }
 
     if (nlVoices.length > 0) {
         // Prioritize higher quality voices:

@@ -102,13 +102,28 @@ export default function TranslateSection() {
 
   useEffect(() => {
     const savedDecks = localStorage.getItem(STORAGE_KEY);
+    const savedInputText = localStorage.getItem("dutch-translate-input");
+    const savedTranslatedText = localStorage.getItem("dutch-translate-output");
+    const savedDirection = localStorage.getItem("dutch-translate-direction");
+    const savedFinalDutch = localStorage.getItem("dutch-translate-final-dutch");
+    const savedFinalEnglish = localStorage.getItem("dutch-translate-final-english");
+    const savedSelectedDeckId = localStorage.getItem("dutch-translate-selected-deck-id");
+
+    if (savedInputText) setInputText(savedInputText);
+    if (savedTranslatedText) setTranslatedText(savedTranslatedText);
+    if (savedDirection) setTranslationDirection(savedDirection as any);
+    if (savedFinalDutch) setFinalDutch(savedFinalDutch);
+    if (savedFinalEnglish) setFinalEnglish(savedFinalEnglish);
+
     if (savedDecks) {
       try {
-        const parsedDecks = JSON.parse(savedDecks);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        const parsedDecks = JSON.parse(savedDecks) as Deck[];
         setDecks(parsedDecks);
         if (parsedDecks.length > 0) {
-          setSelectedDeckId(parsedDecks[0].id);
+          const targetId = savedSelectedDeckId && parsedDecks.some((d) => d.id === savedSelectedDeckId)
+            ? savedSelectedDeckId
+            : parsedDecks[0].id;
+          setSelectedDeckId(targetId);
         }
       } catch (e) {
         console.error("Failed to parse decks from local storage", e);
@@ -119,6 +134,32 @@ export default function TranslateSection() {
       setSpeechRate(parseFloat(savedSpeechRate));
     }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-translate-input", inputText);
+  }, [inputText]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-translate-output", translatedText);
+  }, [translatedText]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-translate-direction", translationDirection);
+  }, [translationDirection]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-translate-final-dutch", finalDutch);
+  }, [finalDutch]);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-translate-final-english", finalEnglish);
+  }, [finalEnglish]);
+
+  useEffect(() => {
+    if (selectedDeckId) {
+      localStorage.setItem("dutch-translate-selected-deck-id", selectedDeckId);
+    }
+  }, [selectedDeckId]);
 
   useEffect(() => {
     if (cachedDutchDictionary) {

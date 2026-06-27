@@ -119,8 +119,123 @@ function getAdjectiveEnding(
   }
 }
 
+interface StrongVerb {
+  infinitive: string;
+  translation: string;
+  pastSingular: string;
+  pastPlural: string;
+  pastParticiple: string;
+  auxiliary: "hebben" | "zijn";
+  example: string;
+  exampleTranslation: string;
+}
+
+const strongVerbsList: StrongVerb[] = [
+  {
+    infinitive: "doen",
+    translation: "to do / make",
+    pastSingular: "deed",
+    pastPlural: "deden",
+    pastParticiple: "gedaan",
+    auxiliary: "hebben",
+    example: "Ik heb mijn huiswerk gedaan.",
+    exampleTranslation: "I have done my homework."
+  },
+  {
+    infinitive: "gaan",
+    translation: "to go",
+    pastSingular: "ging",
+    pastPlural: "gingen",
+    pastParticiple: "gegaan",
+    auxiliary: "zijn",
+    example: "Wij zijn naar de winkel gegaan.",
+    exampleTranslation: "We went (have gone) to the store."
+  },
+  {
+    infinitive: "komen",
+    translation: "to come",
+    pastSingular: "kwam",
+    pastPlural: "kwamen",
+    pastParticiple: "gekomen",
+    auxiliary: "zijn",
+    example: "Zij is gisteren gekomen.",
+    exampleTranslation: "She came (has come) yesterday."
+  },
+  {
+    infinitive: "zien",
+    translation: "to see",
+    pastSingular: "zag",
+    pastPlural: "zagen",
+    pastParticiple: "gezien",
+    auxiliary: "hebben",
+    example: "Ik heb hem in de stad gezien.",
+    exampleTranslation: "I saw (have seen) him in the city."
+  },
+  {
+    infinitive: "zijn",
+    translation: "to be",
+    pastSingular: "was",
+    pastPlural: "waren",
+    pastParticiple: "geweest",
+    auxiliary: "zijn",
+    example: "Wij zijn in Nederland geweest.",
+    exampleTranslation: "We have been to the Netherlands."
+  },
+  {
+    infinitive: "hebben",
+    translation: "to have",
+    pastSingular: "had",
+    pastPlural: "hadden",
+    pastParticiple: "gehad",
+    auxiliary: "hebben",
+    example: "Ik heb gisteren veel plezier gehad.",
+    exampleTranslation: "I had (have had) a lot of fun yesterday."
+  },
+  {
+    infinitive: "nemen",
+    translation: "to take",
+    pastSingular: "nam",
+    pastPlural: "namen",
+    pastParticiple: "genomen",
+    auxiliary: "hebben",
+    example: "Hij heeft zijn jas genomen.",
+    exampleTranslation: "He took (has taken) his coat."
+  },
+  {
+    infinitive: "lezen",
+    translation: "to read",
+    pastSingular: "las",
+    pastPlural: "lazen",
+    pastParticiple: "gelezen",
+    auxiliary: "hebben",
+    example: "Zij heeft het hele boek gelezen.",
+    exampleTranslation: "She read (has read) the entire book."
+  },
+  {
+    infinitive: "drinken",
+    translation: "to drink",
+    pastSingular: "dronk",
+    pastPlural: "dronken",
+    pastParticiple: "gedronken",
+    auxiliary: "hebben",
+    example: "Heb je water gedronken?",
+    exampleTranslation: "Did you drink (have you drunk) water?"
+  },
+  {
+    infinitive: "schrijven",
+    translation: "to write",
+    pastSingular: "schreef",
+    pastPlural: "schreven",
+    pastParticiple: "geschreven",
+    auxiliary: "hebben",
+    example: "Ik heb een e-mail geschreven.",
+    exampleTranslation: "I wrote (have written) an email."
+  }
+];
+
 export default function GrammarSection() {
   const [activeSubTab, setActiveSubTab] = useState<TabId>("spelling");
+  const [selectedStrongVerb, setSelectedStrongVerb] = useState<StrongVerb | null>(strongVerbsList[0]);
 
   // 1. Syllable/Spelling Interactive Tool States
   const [syllableInput, setSyllableInput] = useState("");
@@ -308,6 +423,24 @@ export default function GrammarSection() {
       english: "I want to speak Dutch.",
       correct: ["ik", "wil", "nederlands", "spreken"],
       explanation: "Auxiliary Verb: When you have an auxiliary verb ('wil' - want) and an infinitive ('spreken' - to speak), the auxiliary verb goes in the second position (SVO), and the infinitive goes to the very end of the sentence.",
+    },
+    {
+      id: 5,
+      english: "I did not do it.",
+      correct: ["ik", "heb", "het", "niet", "gedaan"],
+      explanation: "Negation with Past Participle: The negation 'niet' comes after the direct object pronoun 'het', but is placed directly before the final past participle 'gedaan' (done).",
+    },
+    {
+      id: 6,
+      english: "He cannot come today.",
+      correct: ["hij", "kan", "vandaag", "niet", "komen"],
+      explanation: "Modal Verb and Negation: The auxiliary modal verb 'kan' (can) occupies the second position. The negative 'niet' is placed after the time adverb 'vandaag' but directly before the triggered infinitive 'komen' at the very end.",
+    },
+    {
+      id: 7,
+      english: "I am not going to school.",
+      correct: ["ik", "ga", "niet", "naar", "school"],
+      explanation: "Negation with Prepositional Phrase: In Dutch, the negative 'niet' is placed directly before prepositional phrases (like 'naar school' - to school).",
     },
   ];
 
@@ -910,6 +1043,123 @@ export default function GrammarSection() {
               </div>
             )}
           </div>
+
+          {/* Section 2: Strong & Irregular Verbs */}
+          <div className="border border-gray-200 bg-gray-50/60 rounded-xl p-5">
+            <h4 className="font-bold text-sm text-gray-800 flex items-center gap-1.5 mb-2">
+              🏃‍♂️ Strong & Irregular Verbs Explorer
+            </h4>
+            <p className="text-xs text-gray-600 mb-4">
+              Unlike weak verbs, strong verbs change their stem vowel in the past tense and end in <strong>-en</strong> in the past participle (e.g. <em>doen ➔ gedaan</em>, <em>gaan ➔ gegaan</em>). Click any verb to see its past forms:
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+              {strongVerbsList.map((sv) => (
+                <button
+                  key={sv.infinitive}
+                  type="button"
+                  onClick={() => setSelectedStrongVerb(sv)}
+                  className={`px-3 py-2 border rounded-xl text-xs font-semibold transition active:scale-95 text-center flex flex-col items-center justify-center ${
+                    selectedStrongVerb?.infinitive === sv.infinitive
+                      ? "bg-gray-900 border-gray-900 text-white"
+                      : "bg-white border-gray-200 text-gray-800 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="font-bold text-sm">{sv.infinitive}</span>
+                  <span className="opacity-70 text-[10px] mt-0.5">{sv.translation}</span>
+                </button>
+              ))}
+            </div>
+
+            {selectedStrongVerb && (
+              <div className="bg-white border border-gray-200 rounded-xl p-4 animate-fade-in space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-gray-400 font-semibold block uppercase tracking-wider text-[9px]">Infinitive</span>
+                    <span className="text-sm font-bold text-gray-900">{selectedStrongVerb.infinitive}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-semibold block uppercase tracking-wider text-[9px]">Past Singular</span>
+                    <span className="text-sm font-semibold text-gray-800">{selectedStrongVerb.pastSingular}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-semibold block uppercase tracking-wider text-[9px]">Past Plural</span>
+                    <span className="text-sm font-semibold text-gray-800">{selectedStrongVerb.pastPlural}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 font-semibold block uppercase tracking-wider text-[9px]">Past Participle</span>
+                    <span className="text-sm font-bold text-green-700">
+                      {selectedStrongVerb.pastParticiple}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-gray-400 font-semibold block uppercase tracking-wider text-[9px]">Auxiliary Verb</span>
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold mt-0.5 ${
+                      selectedStrongVerb.auxiliary === "zijn" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                    }`}>
+                      {selectedStrongVerb.auxiliary.toUpperCase()}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => speakDutch(selectedStrongVerb.pastParticiple)}
+                    className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition active:scale-95"
+                  >
+                    🔊 Hear Participle
+                  </button>
+                </div>
+
+                <div className="pt-2.5 border-t border-gray-100 bg-gray-50/50 rounded-lg p-2.5 text-xs">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-gray-400 font-semibold block uppercase tracking-wider text-[9px] mb-1">Example Sentence</span>
+                      <p className="font-bold text-gray-900">{selectedStrongVerb.example}</p>
+                      <p className="text-gray-650 italic mt-0.5">{selectedStrongVerb.exampleTranslation}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => speakDutch(selectedStrongVerb.example)}
+                      className="text-gray-500 hover:text-gray-900 p-1 active:scale-90 transition"
+                      aria-label="Hear example sentence"
+                    >
+                      🔊
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 3: Hebben vs. Zijn auxiliary verb rules */}
+          <div className="bg-purple-50/30 border border-purple-100 rounded-xl p-4 text-xs text-purple-950 space-y-2">
+            <h4 className="font-bold text-purple-900 flex items-center gap-1.5">
+              💡 How to choose the auxiliary verb: Hebben vs. Zijn
+            </h4>
+            <p className="leading-relaxed">
+              When forming the perfect tense (e.g. <em>I have worked</em> ➔ <em>Ik heb gewerkt</em>), Dutch uses two auxiliary verbs: <strong>hebben</strong> (to have) or <strong>zijn</strong> (to be).
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <div className="bg-white/80 rounded-lg p-3 border border-purple-200/50">
+                <span className="font-bold text-blue-800 block mb-1">Use HEBBEN for:</span>
+                <ul className="list-disc pl-4 space-y-1 text-gray-700 leading-normal">
+                  <li>Transitive verbs that take a direct object (e.g. <em>kopen</em>, <em>lezen</em>).</li>
+                  <li>Intransitive verbs that describe an action with no change of state/location (e.g. <em>werken</em>, <em>slapen</em>).</li>
+                  <li>Reflexive verbs (e.g. <em>zich wassen</em>).</li>
+                </ul>
+              </div>
+              <div className="bg-white/80 rounded-lg p-3 border border-purple-200/50">
+                <span className="font-bold text-purple-800 block mb-1">Use ZIJN for:</span>
+                <ul className="list-disc pl-4 space-y-1 text-gray-700 leading-normal">
+                  <li>Movement verbs indicating a change of location/direction (e.g. <em>gaan</em>, <em>komen</em>, <em>vertrekken</em>).</li>
+                  <li>Verbs indicating a change of state (e.g. <em>worden</em>, <em>blijven</em>, <em>sterven</em>, <em>groeien</em>).</li>
+                  <li>Specific verbs like <em>zijn</em> (to be) itself (e.g. <em>ik ben geweest</em>).</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -923,6 +1173,76 @@ export default function GrammarSection() {
               If the sentence begins with anything else (like time or place), the subject moves after the verb (called <strong>inversion</strong>).
               In subordinate clauses, all verbs go to the <strong>very end</strong>.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Negation Rules */}
+            <div className="bg-red-50/30 border border-red-100 rounded-xl p-4 text-xs text-red-950 space-y-2">
+              <h4 className="font-bold text-red-900 flex items-center gap-1">
+                🚫 Negation Placement (Niet vs. Geen)
+              </h4>
+              <p className="leading-relaxed">
+                Dutch has two main negative words: <strong>geen</strong> and <strong>niet</strong>.
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-gray-700 leading-normal">
+                <li>
+                  <strong className="text-red-900">Geen:</strong> Used to negate indefinite nouns (nouns preceded by <em>een</em> or no article).
+                  <br />
+                  <span className="italic text-gray-500">Example: Ik heb <strong>geen</strong> fiets. (I have no bicycle.)</span>
+                </li>
+                <li>
+                  <strong className="text-red-900">Niet:</strong> Used to negate verbs, adjectives, adverbs, pronouns, and definite nouns (preceded by <em>de/het</em> or a possessive).
+                  <br />
+                  <span className="italic text-gray-500">Example: Ik zie de man <strong>niet</strong>. (I do not see the man.)</span>
+                </li>
+              </ul>
+              <div className="pt-2 border-t border-red-100">
+                <span className="font-bold text-red-900 block mb-1">Where does "niet" go?</span>
+                <p className="leading-normal text-gray-700">
+                  When negating a whole sentence, <strong>niet</strong> usually goes towards the end of the sentence, but it is placed <strong>directly before</strong>:
+                </p>
+                <ul className="list-disc pl-4 mt-1 space-y-1 text-gray-750">
+                  <li>Prepositional phrases (e.g. <em>naar school</em>).</li>
+                  <li>Final verbs like infinitives or past participles (e.g. <em>gedaan</em>, <em>komen</em>).</li>
+                </ul>
+                <div className="mt-2 bg-white/70 rounded p-2 border border-red-200/50 space-y-1 text-[11px] leading-relaxed">
+                  <p>• <em>Ik heb het <strong>niet</strong> gedaan.</em> (I didn't do it.)</p>
+                  <p>• <em>We gaan <strong>niet</strong> naar huis.</em> (We're not going home.)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trigger Verbs Rules */}
+            <div className="bg-orange-50/30 border border-orange-100 rounded-xl p-4 text-xs text-orange-950 space-y-2">
+              <h4 className="font-bold text-orange-900 flex items-center gap-1">
+                ⚡ Trigger Verbs (Kicking Verbs to the End)
+              </h4>
+              <p className="leading-relaxed">
+                In Dutch, certain words act as "triggers" that kick other verbs to the **very end** of the sentence or clause:
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <span className="font-bold text-orange-900 block">1. Modal & Auxiliary Verbs (Main Clauses)</span>
+                  <p className="text-gray-755 leading-relaxed">
+                    Modal verbs (e.g., <em>willen</em>, <em>moeten</em>, <em>kunnen</em>, <em>mogen</em>, <em>zullen</em>) and auxiliary verbs (<em>hebben</em>, <em>zijn</em>) take the second position in a sentence. They trigger the main action verb to go to the <strong>very end</strong> of the sentence in its infinitive form or past participle:
+                  </p>
+                  <div className="mt-1 bg-white/70 rounded p-2 border border-orange-200/50 text-[11px] leading-relaxed">
+                    <p>• <em>Ik <strong>wil</strong> nederlands <strong>leren</strong>.</em> (I want to learn Dutch.)</p>
+                    <p>• <em>Je <strong>moet</strong> nu <strong>slapen</strong>.</em> (You must sleep now.)</p>
+                  </div>
+                </div>
+                <div>
+                  <span className="font-bold text-orange-900 block">2. Subordinating Conjunctions (Dependent Clauses)</span>
+                  <p className="text-gray-755 leading-relaxed">
+                    Conjunctions like <em>omdat</em> (because), <em>als</em> (if/when), <em>dat</em> (that), and <em>wanneer</em> (when) start subclauses. They act as verb kickers, sending **all verbs** to the **very end** of the clause:
+                  </p>
+                  <div className="mt-1 bg-white/70 rounded p-2 border border-orange-200/50 text-[11px] leading-relaxed">
+                    <p>• <em>Ik ben blij omdat ik vakantie <strong>heb</strong>.</em> (I'm happy because I have a vacation.)</p>
+                    <p>• <em>Hij zegt dat hij ziek <strong>is</strong>.</em> (He says that he is sick.)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Word Order Game Sandbox */}

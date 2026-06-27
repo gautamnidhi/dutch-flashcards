@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import FlashcardsSection from "../components/FlashcardsSection";
 import ListeningSection from "../components/ListeningSection";
 import TranslateSection from "../components/TranslateSection";
@@ -10,6 +10,19 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"flashcards" | "listening" | "translate" | "grammar">(
     "flashcards"
   );
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dutch-active-tab");
+      if (saved) {
+        setActiveTab(saved as any);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("dutch-active-tab", activeTab);
+  }, [activeTab]);
 
   function scrollToTop() {
     window.scrollTo({
