@@ -22,6 +22,30 @@ import {
 
 const DIFFICULT_LIST_NAME = "Difficult_words";
 
+function getGlobalCards(allDecks: Deck[]): Flashcard[] {
+  const uniqueCards: Flashcard[] = [];
+  const seen = new Set<string>();
+
+  allDecks.forEach((deck) => {
+    if (
+      deck.id === "global-practice" || 
+      deck.name.trim().toLowerCase() === DIFFICULT_LIST_NAME.toLowerCase()
+    ) {
+      return;
+    }
+
+    deck.cards.forEach((card) => {
+      const key = `${card.dutch.trim().toLowerCase()}|${card.english.trim().toLowerCase()}|${(card.type || "").trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueCards.push(card);
+      }
+    });
+  });
+
+  return uniqueCards;
+}
+
 function migrateRelationCards(decks: Deck[]): Deck[] {
   const nlToEn: Record<string, string> = {};
   
@@ -173,6 +197,7 @@ function parseMultiSheetVocab(workbook: XLSX.WorkBook): Flashcard[] {
 export default function FlashcardsSection() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState("");
+  const [shuffledGlobalCards, setShuffledGlobalCards] = useState<Flashcard[] | null>(null);
   const [deckName, setDeckName] = useState("");
   const [pendingCards, setPendingCards] = useState<Flashcard[]>([]);
   const [pendingFileName, setPendingFileName] = useState("");
@@ -267,6 +292,10 @@ export default function FlashcardsSection() {
         {
           name: "Dutch Alphabet & Sounds",
           path: "/lists/alphabet_pronunciation.csv"
+        },
+        {
+          name: "Dutch Colors",
+          path: "/lists/colors.csv"
         }
       ];
 
@@ -442,8 +471,17 @@ export default function FlashcardsSection() {
   }, [dailyLimit]);
 
   const selectedDeck = useMemo(() => {
+    if (selectedDeckId === "global-practice") {
+      const globalCards = shuffledGlobalCards || getGlobalCards(decks);
+      return {
+        id: "global-practice",
+        name: "Practice Global List",
+        cards: globalCards,
+        createdAt: new Date().toISOString()
+      };
+    }
     return decks.find((deck) => deck.id === selectedDeckId);
-  }, [decks, selectedDeckId]);
+  }, [decks, selectedDeckId, shuffledGlobalCards]);
 
   const selectedCards = selectedDeck?.cards || [];
   const todaySessionKey = `${selectedDeckId}-${dailyLimit}-${todayRefreshSeed}`;
@@ -636,13 +674,42 @@ export default function FlashcardsSection() {
   ) {
     if (!selectedDeck) return;
 
-    setDecks((existingDecks) =>
-        existingDecks.map((deck) =>
-            deck.id === selectedDeck.id
-                ? { ...deck, cards: updater(deck.cards) }
-                : deck
-        )
-    );
+    if (selectedDeckId === "global-practice") {
+      const currentGlobalCards = shuffledGlobalCards || getGlobalCards(decks);
+      const updatedGlobalCards = updater(currentGlobalCards);
+
+      setShuffledGlobalCards(updatedGlobalCards);
+
+      setDecks((existingDecks) => {
+        const changedCardsMap = new Map<string, Flashcard>();
+        updatedGlobalCards.forEach((updatedCard) => {
+          const originalCard = currentGlobalCards.find((c) => c.id === updatedCard.id);
+          if (originalCard && JSON.stringify(originalCard) !== JSON.stringify(updatedCard)) {
+            changedCardsMap.set(updatedCard.id, updatedCard);
+          }
+        });
+
+        if (changedCardsMap.size === 0) return existingDecks;
+
+        return existingDecks.map((deck) => {
+          const updatedCards = deck.cards.map((card) => {
+            if (changedCardsMap.has(card.id)) {
+              return { ...card, ...changedCardsMap.get(card.id) };
+            }
+            return card;
+          });
+          return { ...deck, cards: updatedCards };
+        });
+      });
+    } else {
+      setDecks((existingDecks) =>
+          existingDecks.map((deck) =>
+              deck.id === selectedDeck.id
+                  ? { ...deck, cards: updater(deck.cards) }
+                  : deck
+          )
+      );
+    }
   }
 
   function isSameFlashcard(firstCard: Flashcard, secondCard: Flashcard) {
@@ -874,7 +941,28 @@ export default function FlashcardsSection() {
       intervalDays: 0,
     };
 
-    if (selectedDeck) {
+    if (selectedDeckId === "global-practice") {
+      const targetDeck = decks.find((d) => !isDifficultList(d) && d.id !== "global-practice");
+      if (targetDeck) {
+        setDecks((existingDecks) =>
+          existingDecks.map((deck) =>
+            deck.id === targetDeck.id
+              ? { ...deck, cards: [newCard, ...deck.cards] }
+              : deck
+          )
+        );
+        setMessage(`Added "${dutch}" to list "${targetDeck.name}".`);
+      } else {
+        const newDeck: Deck = {
+          id: createId(),
+          name: "My words",
+          cards: [newCard],
+          createdAt: new Date().toISOString(),
+        };
+        setDecks((existingDecks) => [newDeck, ...existingDecks]);
+        setMessage(`Created "My words" and added "${dutch}".`);
+      }
+    } else if (selectedDeck) {
       updateSelectedDeckCards((cards) => [newCard, ...cards]);
       setMessage(`Added "${dutch}" to "${selectedDeck.name}".`);
     } else {
@@ -987,28 +1075,32 @@ export default function FlashcardsSection() {
     if (rating === "hard") {
       intervalDays =
           currentInterval > 0
-              ? Math.max(2, Math.round(currentInterval * 1.2))
-              : 3;
+              ? Math.max(1, Math.round(currentInterval * 1.2))
+              : 1;
       ease = Math.max(1.3, currentEase - 0.15);
       difficult = true;
     }
 
     if (rating === "good") {
-      intervalDays =
-          currentInterval > 0
-              ? Math.max(3, Math.round(currentInterval * ease))
-              : 7;
+      if (currentInterval === 0) {
+        intervalDays = 2; // Graduation step 1
+      } else if (currentInterval === 2) {
+        intervalDays = 5; // Graduation step 2
+      } else {
+        intervalDays = Math.max(4, Math.round(currentInterval * ease));
+      }
       difficult = false;
     }
 
     if (rating === "easy") {
-      intervalDays =
-          currentInterval > 0
-              ? Math.max(7, Math.round(currentInterval * (ease + 0.5)))
-              : 14;
+      if (currentInterval === 0) {
+        intervalDays = 4;
+      } else {
+        intervalDays = Math.max(6, Math.round(currentInterval * ease * 1.3));
+      }
       ease = currentEase + 0.15;
       difficult = false;
-      known = true;
+      known = false; // Kept in review cycle
     }
 
     updateSelectedDeckCards((cards) =>
@@ -1074,6 +1166,33 @@ export default function FlashcardsSection() {
     );
 
     setMessage(`Moved "${currentCard.dutch}" back to practice.`);
+    goToNextCard();
+  }
+
+  function markCurrentCardAsKnown() {
+    if (!currentCard) return;
+
+    updateSelectedDeckCards((cards) =>
+        cards.map((card) =>
+            card.id === currentCard.id
+                ? {
+                  ...card,
+                  known: true,
+                  difficult: false,
+                  nextReviewDate: "",
+                  lastReviewedDate: getTodayKey(),
+                }
+                : card
+        )
+    );
+
+    setMessage(`Marked "${currentCard.dutch}" as known.`);
+
+    if (studyMode === "today") {
+      moveTodayCardAfterAnswer(currentCard.id, "easy");
+      return;
+    }
+
     goToNextCard();
   }
 
@@ -1180,6 +1299,11 @@ export default function FlashcardsSection() {
   function deleteCurrentDeck() {
     if (!selectedDeck) return;
 
+    if (selectedDeckId === "global-practice") {
+      alert("The Practice Global List cannot be deleted because it is generated dynamically.");
+      return;
+    }
+
     const confirmed = window.confirm(
         `Delete "${selectedDeck.name}"? This cannot be undone.`
     );
@@ -1240,6 +1364,7 @@ export default function FlashcardsSection() {
 
   function handleDeckChange(deckId: string) {
     setSelectedDeckId(deckId);
+    setShuffledGlobalCards(null); // Reset global shuffle when deck changes
     setStudyMode("practice");
     setCurrentIndex(0);
     setShowAnswer(false);
@@ -2017,14 +2142,26 @@ export default function FlashcardsSection() {
                   >
                     Move back to practice
                   </button>
-              ) : currentCard.difficult ? (
-                  <button
-                      className="mb-3 w-full rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
-                      onClick={removeDifficultFromCurrentCard}
-                  >
-                    Remove hard flag
-                  </button>
-              ) : null}
+              ) : (
+                <div className="flex flex-col gap-2 mb-3">
+                  {!currentCard.known && showAnswer && (
+                    <button
+                        className="w-full rounded-xl bg-green-50 hover:bg-green-100 border border-green-200 px-4 py-3 font-semibold text-green-700 active:scale-95 transition-all duration-150"
+                        onClick={markCurrentCardAsKnown}
+                    >
+                      ✅ Mark as Known (Remove from practice)
+                    </button>
+                  )}
+                  {currentCard.difficult ? (
+                    <button
+                        className="w-full rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700"
+                        onClick={removeDifficultFromCurrentCard}
+                    >
+                      Remove hard flag
+                    </button>
+                  ) : null}
+                </div>
+              )}
 
               {showAnswer && studyMode !== "known" && (
                   <div className="grid grid-cols-4 gap-2">
@@ -2225,10 +2362,13 @@ export default function FlashcardsSection() {
                 </span>
 
                       <select
-                          className="w-full rounded-lg border border-gray-300 p-2 text-sm"
+                          className="w-full rounded-lg border border-gray-300 p-2 text-sm bg-gray-50/50"
                           value={selectedDeckId}
                           onChange={(event) => handleDeckChange(event.target.value)}
                       >
+                        <option value="global-practice" className="font-semibold text-blue-700">
+                          🌎 Practice Global List ({getGlobalCards(decks).length} unique cards)
+                        </option>
                         {decks.map((deck) => (
                             <option key={deck.id} value={deck.id}>
                               {deck.name} ({deck.cards.length})

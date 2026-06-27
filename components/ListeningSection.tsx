@@ -29,6 +29,11 @@ export default function ListeningSection() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioPlayRequestRef = useRef(0);
 
+  // Refs for seamless background audio playback and Media Session integrations
+  const nextAudioLessonIdRef = useRef<string>("");
+  const nextAudioUrlRef = useRef<string>("");
+  const playRelativeAudioLessonRef = useRef<((direction: "previous" | "next") => void) | null>(null);
+
   useEffect(() => {
     const savedLessons = localStorage.getItem(AUDIO_LESSONS_KEY);
 
@@ -228,36 +233,37 @@ export default function ListeningSection() {
         URL.revokeObjectURL(currentAudioUrl);
       }
 
-      const blob = await getAudioBlob(lesson.id);
+      let url = "";
+      if (nextAudioLessonIdRef.current === lesson.id && nextAudioUrlRef.current) {
+        url = nextAudioUrlRef.current;
+        // Transfer ownership of preloaded url to currentAudioUrl state, clear preload refs
+        nextAudioUrlRef.current = "";
+        nextAudioLessonIdRef.current = "";
+      } else {
+        const blob = await getAudioBlob(lesson.id);
 
-      if (!blob) {
-        setAudioError("Audio file was not found. Please upload it again.");
-        return;
+        if (!blob) {
+          setAudioError("Audio file was not found. Please upload it again.");
+          return;
+        }
+
+        if (audioPlayRequestRef.current !== requestId) {
+          return;
+        }
+
+        url = URL.createObjectURL(blob);
       }
-
-      if (audioPlayRequestRef.current !== requestId) {
-        return;
-      }
-
-      const url = URL.createObjectURL(blob);
 
       setCurrentAudioUrl(url);
       setCurrentAudioLessonId(lesson.id);
 
-      requestAnimationFrame(async () => {
-        const freshAudioElement = audioRef.current;
-
-        if (!freshAudioElement || audioPlayRequestRef.current !== requestId) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-
+      if (audioElement) {
         try {
-          freshAudioElement.src = url;
-          freshAudioElement.playbackRate = audioPlaybackRate;
-          freshAudioElement.load();
+          audioElement.src = url;
+          audioElement.playbackRate = audioPlaybackRate;
+          audioElement.load();
 
-          await freshAudioElement.play();
+          await audioElement.play();
 
           if (audioPlayRequestRef.current === requestId) {
             setIsAudioPlaying(true);
@@ -272,7 +278,7 @@ export default function ListeningSection() {
 
           setIsAudioPlaying(false);
         }
-      });
+      }
     } catch (error) {
       console.error(error);
       setAudioError("Could not play this audio.");
@@ -318,6 +324,114 @@ export default function ListeningSection() {
     void playAudioLesson(sortedAudioLessons[nextIndex]);
   }
 
+  // Keep the ref for stable access inside Media Session handlers
+  useEffect(() => {
+    playRelativeAudioLessonRef.current = playRelativeAudioLesson;
+  }, [playRelativeAudioLesson]);
+
+  // Pre-load the next audio lesson to ensure seamless background playback
+  useEffect(() => {
+    if (sortedAudioLessons.length <= 1 || !currentAudioLessonId) {
+      if (nextAudioUrlRef.current) {
+        URL.revokeObjectURL(nextAudioUrlRef.current);
+        nextAudioUrlRef.current = "";
+      }
+      nextAudioLessonIdRef.current = "";
+      return;
+    }
+
+    const currentIndex = sortedAudioLessons.findIndex(
+      (lesson) => lesson.id === currentAudioLessonId
+    );
+    if (currentIndex < 0) return;
+
+    const nextIndex = (currentIndex + 1) % sortedAudioLessons.length;
+    const nextLesson = sortedAudioLessons[nextIndex];
+
+    if (nextAudioLessonIdRef.current === nextLesson.id) {
+      return;
+    }
+
+    if (nextAudioUrlRef.current) {
+      URL.revokeObjectURL(nextAudioUrlRef.current);
+      nextAudioUrlRef.current = "";
+    }
+
+    nextAudioLessonIdRef.current = nextLesson.id;
+
+    getAudioBlob(nextLesson.id).then((blob) => {
+      if (nextAudioLessonIdRef.current === nextLesson.id && blob) {
+        nextAudioUrlRef.current = URL.createObjectURL(blob);
+      }
+    }).catch(err => {
+      console.error("Failed to preload next audio lesson blob:", err);
+    });
+
+    return () => {
+      if (nextAudioUrlRef.current) {
+        URL.revokeObjectURL(nextAudioUrlRef.current);
+        nextAudioUrlRef.current = "";
+      }
+      nextAudioLessonIdRef.current = "";
+    };
+  }, [currentAudioLessonId, sortedAudioLessons]);
+
+  // Set up Media Session API metadata and action handlers
+  useEffect(() => {
+    if (typeof window === "undefined" || !("mediaSession" in navigator)) {
+      return;
+    }
+
+    if (currentAudioLesson) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentAudioLesson.title,
+        artist: "Dutch Flashcards",
+        album: "Listening Practice",
+      });
+    } else {
+      navigator.mediaSession.metadata = null;
+    }
+  }, [currentAudioLesson]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("mediaSession" in navigator)) {
+      return;
+    }
+    navigator.mediaSession.playbackState = isAudioPlaying ? "playing" : "paused";
+  }, [isAudioPlaying]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("mediaSession" in navigator)) {
+      return;
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler("play", () => {
+        audioRef.current?.play();
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        audioRef.current?.pause();
+      });
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        playRelativeAudioLessonRef.current?.("previous");
+      });
+      navigator.mediaSession.setActionHandler("nexttrack", () => {
+        playRelativeAudioLessonRef.current?.("next");
+      });
+    } catch (e) {
+      console.warn("Media Session Action Handler registration failed:", e);
+    }
+
+    return () => {
+      if (typeof window !== "undefined" && "mediaSession" in navigator) {
+        navigator.mediaSession.setActionHandler("play", null);
+        navigator.mediaSession.setActionHandler("pause", null);
+        navigator.mediaSession.setActionHandler("previoustrack", null);
+        navigator.mediaSession.setActionHandler("nexttrack", null);
+      }
+    };
+  }, []);
+
   function toggleLessonDone(lessonId: string) {
     setAudioLessons((existingLessons) =>
         sortAudioLessons(
@@ -343,6 +457,15 @@ export default function ListeningSection() {
           URL.revokeObjectURL(currentAudioUrl);
           setCurrentAudioUrl("");
         }
+      }
+
+      // Clean up preload refs if they point to the deleted lesson
+      if (nextAudioLessonIdRef.current === lesson.id) {
+        if (nextAudioUrlRef.current) {
+          URL.revokeObjectURL(nextAudioUrlRef.current);
+          nextAudioUrlRef.current = "";
+        }
+        nextAudioLessonIdRef.current = "";
       }
 
       await deleteAudioBlob(lesson.id);
@@ -396,6 +519,13 @@ export default function ListeningSection() {
           if (currentAudioUrl) {
             URL.revokeObjectURL(currentAudioUrl);
           }
+
+          // Clean up preload refs
+          if (nextAudioUrlRef.current) {
+            URL.revokeObjectURL(nextAudioUrlRef.current);
+            nextAudioUrlRef.current = "";
+          }
+          nextAudioLessonIdRef.current = "";
 
           setAudioLessons([]);
           setCurrentAudioLessonId("");
