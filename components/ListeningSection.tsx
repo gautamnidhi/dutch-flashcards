@@ -25,6 +25,9 @@ export default function ListeningSection() {
   const [audioTouchStartX, setAudioTouchStartX] = useState<number | null>(null);
   const [audioTouchEndX, setAudioTouchEndX] = useState<number | null>(null);
   const [autoplay, setAutoplay] = useState(true);
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  const [customUploadFolder, setCustomUploadFolder] = useState("");
+  const [selectedFolderFilter, setSelectedFolderFilter] = useState<string>("all");
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioPlayRequestRef = useRef(0);
@@ -51,6 +54,16 @@ export default function ListeningSection() {
     if (savedAutoplay !== null) {
       setAutoplay(savedAutoplay === "true");
     }
+
+    const savedLastPlayedId = localStorage.getItem("dutch-last-played-audio-id");
+    if (savedLastPlayedId) {
+      setCurrentAudioLessonId(savedLastPlayedId);
+    }
+
+    const savedFolderFilter = localStorage.getItem("dutch-listening-selected-folder-filter");
+    if (savedFolderFilter) {
+      setSelectedFolderFilter(savedFolderFilter);
+    }
   }, []);
 
   const toggleAutoplay = () => {
@@ -62,6 +75,18 @@ export default function ListeningSection() {
   useEffect(() => {
     localStorage.setItem(AUDIO_LESSONS_KEY, JSON.stringify(audioLessons));
   }, [audioLessons]);
+
+  useEffect(() => {
+    if (currentAudioLessonId) {
+      localStorage.setItem("dutch-last-played-audio-id", currentAudioLessonId);
+    }
+  }, [currentAudioLessonId]);
+
+  useEffect(() => {
+    if (selectedFolderFilter) {
+      localStorage.setItem("dutch-listening-selected-folder-filter", selectedFolderFilter);
+    }
+  }, [selectedFolderFilter]);
 
   useEffect(() => {
     return () => {
@@ -81,11 +106,54 @@ export default function ListeningSection() {
     return sortAudioLessons(audioLessons);
   }, [audioLessons]);
 
+  const availableFolders = useMemo(() => {
+    const folders = new Set<string>();
+    audioLessons.forEach((lesson) => {
+      if (lesson.folder) {
+        folders.add(lesson.folder);
+      }
+    });
+    return Array.from(folders).sort();
+  }, [audioLessons]);
+
+  const filteredAudioLessons = useMemo(() => {
+    return sortedAudioLessons.filter((lesson) => {
+      if (selectedFolderFilter === "all") return true;
+      if (selectedFolderFilter === "uncategorized") return !lesson.folder;
+      return lesson.folder === selectedFolderFilter;
+    });
+  }, [sortedAudioLessons, selectedFolderFilter]);
+
+  const groupedLessons = useMemo(() => {
+    const groups: Record<string, AudioLesson[]> = {};
+    const uncategorized: AudioLesson[] = [];
+
+    filteredAudioLessons.forEach((lesson) => {
+      if (lesson.folder) {
+        if (!groups[lesson.folder]) {
+          groups[lesson.folder] = [];
+        }
+        groups[lesson.folder].push(lesson);
+      } else {
+        uncategorized.push(lesson);
+      }
+    });
+
+    return { groups, uncategorized };
+  }, [filteredAudioLessons]);
+
+  const toggleFolderCollapse = (folderName: string) => {
+    setCollapsedFolders((prev) => ({
+      ...prev,
+      [folderName]: !prev[folderName],
+    }));
+  };
+
   const currentAudioLesson = useMemo(() => {
-    return sortedAudioLessons.find(
+    return filteredAudioLessons.find(
         (lesson) => lesson.id === currentAudioLessonId
     );
-  }, [sortedAudioLessons, currentAudioLessonId]);
+  }, [filteredAudioLessons, currentAudioLessonId]);
 
   const listeningStats = useMemo(() => {
     const done = audioLessons.filter((lesson) => lesson.done).length;
@@ -151,6 +219,11 @@ export default function ListeningSection() {
 
         await saveAudioBlob(id, file);
 
+        const pathParts = (file as any).webkitRelativePath ? (file as any).webkitRelativePath.split("/") : [];
+        const folder = customUploadFolder.trim()
+          ? customUploadFolder.trim()
+          : (pathParts.length > 1 ? pathParts.slice(0, -1).join("/") : undefined);
+
         newLessons.push({
           id,
           title: cleanTitle,
@@ -158,6 +231,7 @@ export default function ListeningSection() {
           createdAt: new Date().toISOString(),
           fileName: file.name,
           fileSize: file.size,
+          folder,
         });
       }
 
@@ -287,9 +361,9 @@ export default function ListeningSection() {
   }
 
   function playRelativeAudioLesson(direction: "previous" | "next") {
-    if (sortedAudioLessons.length === 0) return;
+    if (filteredAudioLessons.length === 0) return;
 
-    const currentAudioIndex = sortedAudioLessons.findIndex(
+    const currentAudioIndex = filteredAudioLessons.findIndex(
         (lesson) => lesson.id === currentAudioLessonId
     );
 
@@ -311,17 +385,17 @@ export default function ListeningSection() {
       if (direction === "previous") {
         nextIndex =
             currentAudioIndex === 0
-                ? sortedAudioLessons.length - 1
+                ? filteredAudioLessons.length - 1
                 : currentAudioIndex - 1;
       } else {
         nextIndex =
-            currentAudioIndex === sortedAudioLessons.length - 1
+            currentAudioIndex === filteredAudioLessons.length - 1
                 ? 0
                 : currentAudioIndex + 1;
       }
     }
 
-    void playAudioLesson(sortedAudioLessons[nextIndex]);
+    void playAudioLesson(filteredAudioLessons[nextIndex]);
   }
 
   // Keep the ref for stable access inside Media Session handlers
@@ -331,7 +405,7 @@ export default function ListeningSection() {
 
   // Pre-load the next audio lesson to ensure seamless background playback
   useEffect(() => {
-    if (sortedAudioLessons.length <= 1 || !currentAudioLessonId) {
+    if (filteredAudioLessons.length <= 1 || !currentAudioLessonId) {
       if (nextAudioUrlRef.current) {
         URL.revokeObjectURL(nextAudioUrlRef.current);
         nextAudioUrlRef.current = "";
@@ -340,13 +414,13 @@ export default function ListeningSection() {
       return;
     }
 
-    const currentIndex = sortedAudioLessons.findIndex(
+    const currentIndex = filteredAudioLessons.findIndex(
       (lesson) => lesson.id === currentAudioLessonId
     );
     if (currentIndex < 0) return;
 
-    const nextIndex = (currentIndex + 1) % sortedAudioLessons.length;
-    const nextLesson = sortedAudioLessons[nextIndex];
+    const nextIndex = (currentIndex + 1) % filteredAudioLessons.length;
+    const nextLesson = filteredAudioLessons[nextIndex];
 
     if (nextAudioLessonIdRef.current === nextLesson.id) {
       return;
@@ -374,7 +448,7 @@ export default function ListeningSection() {
       }
       nextAudioLessonIdRef.current = "";
     };
-  }, [currentAudioLessonId, sortedAudioLessons]);
+  }, [currentAudioLessonId, filteredAudioLessons]);
 
   // Set up Media Session API metadata and action handlers
   useEffect(() => {
@@ -539,6 +613,135 @@ export default function ListeningSection() {
         });
   }
 
+  function deleteFolderLessons(folderName: string) {
+    const lessonsInFolder = audioLessons.filter((l) => l.folder === folderName);
+    if (lessonsInFolder.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Delete all ${lessonsInFolder.length} audios in folder "${folderName}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    Promise.all(lessonsInFolder.map((lesson) => deleteAudioBlob(lesson.id)))
+      .then(() => {
+        const isCurrentPlayingInFolder = lessonsInFolder.some((l) => l.id === currentAudioLessonId);
+        if (isCurrentPlayingInFolder) {
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
+          if (currentAudioUrl) {
+            URL.revokeObjectURL(currentAudioUrl);
+          }
+          if (nextAudioUrlRef.current) {
+            URL.revokeObjectURL(nextAudioUrlRef.current);
+            nextAudioUrlRef.current = "";
+          }
+          nextAudioLessonIdRef.current = "";
+          setCurrentAudioLessonId("");
+          setCurrentAudioUrl("");
+          setIsAudioPlaying(false);
+        }
+
+        setAudioLessons((existing) => {
+          const next = existing.filter((l) => l.folder !== folderName);
+          localStorage.setItem(AUDIO_LESSONS_KEY, JSON.stringify(next));
+          return next;
+        });
+
+        setAudioMessage(`Deleted all audios in folder "${folderName}".`);
+      })
+      .catch((error) => {
+        console.error(error);
+        setAudioError(`Could not delete audios in folder "${folderName}".`);
+      });
+  }
+
+  function scrollToActiveLesson() {
+    if (!currentAudioLessonId) return;
+
+    const currentLesson = audioLessons.find((l) => l.id === currentAudioLessonId);
+    if (currentLesson && currentLesson.folder) {
+      setCollapsedFolders((prev) => ({
+        ...prev,
+        [currentLesson.folder!]: false,
+      }));
+    }
+
+    setTimeout(() => {
+      const element = document.getElementById(`audio-lesson-card-${currentAudioLessonId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
+  }
+
+  const renderLessonCard = (lesson: AudioLesson) => {
+    return (
+      <div
+        key={lesson.id}
+        id={`audio-lesson-card-${lesson.id}`}
+        className="rounded-2xl bg-white p-4 shadow"
+        onTouchStart={(event) => {
+          setAudioTouchEndX(null);
+          setAudioTouchStartX(event.targetTouches[0].clientX);
+        }}
+        onTouchMove={(event) => {
+          setAudioTouchEndX(event.targetTouches[0].clientX);
+        }}
+        onTouchEnd={() => handleAudioLessonSwipe(lesson)}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="mb-2 flex flex-wrap gap-2">
+              {lesson.done && (
+                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                  Done
+                </span>
+              )}
+
+              {currentAudioLessonId === lesson.id && isAudioPlaying && (
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                  Playing
+                </span>
+              )}
+            </div>
+
+            <h3 className="font-semibold text-sm sm:text-base text-gray-900 break-all">{lesson.title}</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Uploaded {new Date(lesson.createdAt).toLocaleDateString()}
+            </p>
+          </div>
+
+          <input
+            type="checkbox"
+            checked={lesson.done}
+            onChange={() => toggleLessonDone(lesson.id)}
+            className="mt-1 h-6 w-6"
+            aria-label="Mark lesson done"
+          />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            className="rounded-xl bg-gray-900 px-3 py-3 text-sm font-semibold text-white"
+            onClick={() => void playAudioLesson(lesson)}
+          >
+            {currentAudioLessonId === lesson.id && isAudioPlaying ? "Pause" : "Play"}
+          </button>
+
+          <button
+            className={`rounded-xl px-3 py-3 text-sm font-semibold ${
+              lesson.done ? "bg-green-500 text-white" : "bg-green-100 text-green-700"
+            }`}
+            onClick={() => toggleLessonDone(lesson.id)}
+          >
+            {lesson.done ? "Done" : "Mark done"}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
       <>
         <section className="rounded-2xl bg-white p-4 shadow">
@@ -578,22 +781,84 @@ export default function ListeningSection() {
             </div>
           </div>
 
-          <label className="mt-4 block">
-          <span className="mb-2 block text-sm font-medium">
-            Upload audio lessons
-          </span>
+          {availableFolders.length > 0 && (
+            <div className="mt-4 flex flex-col gap-1.5 text-xs">
+              <label htmlFor="folder-filter" className="font-bold text-gray-500 uppercase tracking-wider text-left">
+                📁 Focus Folder / Playlist:
+              </label>
+              <select
+                id="folder-filter"
+                value={selectedFolderFilter}
+                onChange={(e) => setSelectedFolderFilter(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 bg-white p-2.5 font-semibold text-gray-750 focus:border-gray-900 focus:outline-none shadow-sm"
+              >
+                <option value="all">📁 All Folders & Files</option>
+                {availableFolders.map((folder) => (
+                  <option key={folder} value={folder}>
+                    📁 {folder}
+                  </option>
+                ))}
+                {audioLessons.some((l) => !l.folder) && (
+                  <option value="uncategorized">📄 Individual Files (Uncategorized)</option>
+                )}
+              </select>
+            </div>
+          )}
 
+          <div className="mt-4">
+            <span className="mb-1.5 block text-sm font-medium text-gray-700 text-left">
+              Assign to Folder (Optional)
+            </span>
             <input
-                type="file"
-                accept=".mp3,.MP3,.m4a,.M4A,.aac,.AAC,.wav,.WAV,.ogg,.OGG,audio/mpeg,audio/mp3,audio/*"
-                multiple
-                className="block w-full rounded-lg border border-gray-300 p-2 text-sm"
-                onChange={(event) => {
-                  handleAudioUpload(event.target.files);
-                  event.target.value = "";
-                }}
+              type="text"
+              placeholder="e.g. Chapter 1, Vocabulary, Dialogues..."
+              value={customUploadFolder}
+              onChange={(e) => setCustomUploadFolder(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 bg-white p-2.5 text-xs focus:border-gray-900 focus:outline-none shadow-sm mb-3"
             />
-          </label>
+
+            <span className="mb-2 block text-sm font-medium text-gray-700 text-left">
+              Upload audio lessons
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Upload Files Button */}
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-gray-900 rounded-2xl p-4 bg-white cursor-pointer active:scale-98 transition-all duration-200">
+                <span className="text-2xl mb-1" role="img" aria-label="file">📄</span>
+                <span className="text-xs font-semibold text-gray-750">Upload Files</span>
+                <span className="text-[10px] text-gray-400 mt-0.5 text-center">Select multiple audios</span>
+                <input
+                  type="file"
+                  accept=".mp3,.MP3,.m4a,.M4A,.aac,.AAC,.wav,.WAV,.ogg,.OGG,audio/mpeg,audio/mp3,audio/*"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => {
+                    handleAudioUpload(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+
+              {/* Upload Folder Button */}
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-gray-900 rounded-2xl p-4 bg-white cursor-pointer active:scale-98 transition-all duration-200">
+                <span className="text-2xl mb-1" role="img" aria-label="folder">📁</span>
+                <span className="text-xs font-semibold text-gray-750">Upload Folder</span>
+                <span className="text-[10px] text-gray-400 mt-0.5 text-center">Upload folder recursively</span>
+                <input
+                  type="file"
+                  {...({
+                    webkitdirectory: "",
+                    directory: ""
+                  } as any)}
+                  multiple
+                  className="hidden"
+                  onChange={(event) => {
+                    handleAudioUpload(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </div>
 
           <p className="mt-2 text-xs text-gray-500">
             You can upload multiple MP3/audio files. They are stored on this
@@ -696,6 +961,14 @@ export default function ListeningSection() {
                   Next audio →
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={scrollToActiveLesson}
+                className="mt-3 w-full rounded-xl border border-gray-300 bg-white py-3 text-xs font-semibold text-gray-750 hover:bg-gray-50 active:scale-98 transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <span>🔍</span> Scroll to active lesson in list
+              </button>
             </section>
         )}
 
@@ -707,73 +980,75 @@ export default function ListeningSection() {
                 </p>
               </div>
           ) : (
-              sortedAudioLessons.map((lesson) => (
-                  <div
-                      key={lesson.id}
-                      className="rounded-2xl bg-white p-4 shadow"
-                      onTouchStart={(event) => {
-                        setAudioTouchEndX(null);
-                        setAudioTouchStartX(event.targetTouches[0].clientX);
-                      }}
-                      onTouchMove={(event) => {
-                        setAudioTouchEndX(event.targetTouches[0].clientX);
-                      }}
-                      onTouchEnd={() => handleAudioLessonSwipe(lesson)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          {lesson.done && (
-                              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                        Done
-                      </span>
-                          )}
+            <>
+              {/* Grouped Folder Lessons */}
+              {Object.entries(groupedLessons.groups).map(([folderName, lessons]) => {
+                const total = lessons.length;
+                const doneCount = lessons.filter((l) => l.done).length;
+                const isCollapsed = collapsedFolders[folderName] || false;
+                const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
-                          {currentAudioLessonId === lesson.id && isAudioPlaying && (
-                              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                        Playing
-                      </span>
-                          )}
+                return (
+                  <div key={folderName} className="space-y-2 border-b border-gray-200 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleFolderCollapse(folderName)}
+                      className="flex w-full items-center justify-between rounded-xl bg-gray-50 border border-gray-200 p-3 hover:bg-gray-100 transition active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-2 text-left">
+                        <span className="text-xl">📁</span>
+                        <div>
+                          <h4 className="font-bold text-sm text-gray-800 break-all">{folderName}</h4>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] font-semibold text-gray-500">
+                              {doneCount}/{total} completed ({percent}%)
+                            </span>
+                          </div>
                         </div>
-
-                        <h3 className="font-semibold">{lesson.title}</h3>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Uploaded {new Date(lesson.createdAt).toLocaleDateString()}
-                        </p>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden hidden sm:block">
+                          <div className="h-full bg-green-500" style={{ width: `${percent}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-500 font-bold">
+                          {isCollapsed ? "▼ Expand" : "▲ Collapse"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteFolderLessons(folderName);
+                          }}
+                          className="ml-1 rounded-lg bg-red-50 p-1.5 text-xs font-semibold text-red-750 hover:bg-red-100 transition active:scale-90"
+                          title={`Delete folder "${folderName}"`}
+                          aria-label={`Delete folder ${folderName}`}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </button>
 
-                      <input
-                          type="checkbox"
-                          checked={lesson.done}
-                          onChange={() => toggleLessonDone(lesson.id)}
-                          className="mt-1 h-6 w-6"
-                          aria-label="Mark lesson done"
-                      />
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                          className="rounded-xl bg-gray-900 px-3 py-3 text-sm font-semibold text-white"
-                          onClick={() => void playAudioLesson(lesson)}
-                      >
-                        {currentAudioLessonId === lesson.id && isAudioPlaying
-                            ? "Pause"
-                            : "Play"}
-                      </button>
-
-                      <button
-                          className={`rounded-xl px-3 py-3 text-sm font-semibold ${
-                              lesson.done
-                                  ? "bg-green-500 text-white"
-                                  : "bg-green-100 text-green-700"
-                          }`}
-                          onClick={() => toggleLessonDone(lesson.id)}
-                      >
-                        {lesson.done ? "Done" : "Mark done"}
-                      </button>
-                    </div>
+                    {!isCollapsed && (
+                      <div className="pl-3 border-l-2 border-gray-200 ml-4 space-y-3 pt-1">
+                        {lessons.map((lesson) => renderLessonCard(lesson))}
+                      </div>
+                    )}
                   </div>
-              ))
+                );
+              })}
+
+              {/* Uncategorized Lessons */}
+              {groupedLessons.uncategorized.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  {Object.keys(groupedLessons.groups).length > 0 && (
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">
+                      Individual Files
+                    </h4>
+                  )}
+                  {groupedLessons.uncategorized.map((lesson) => renderLessonCard(lesson))}
+                </div>
+              )}
+            </>
           )}
         </section>
 

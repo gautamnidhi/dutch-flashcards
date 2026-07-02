@@ -28,6 +28,7 @@ export type AudioLesson = {
   createdAt: string;
   fileName?: string;
   fileSize?: number;
+  folder?: string;
 };
 
 export type StudyMode = "practice" | "today" | "difficult" | "known";
