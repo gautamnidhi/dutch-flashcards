@@ -79,6 +79,8 @@ export default function ListeningSection() {
   useEffect(() => {
     if (currentAudioLessonId) {
       localStorage.setItem("dutch-last-played-audio-id", currentAudioLessonId);
+    } else {
+      localStorage.removeItem("dutch-last-played-audio-id");
     }
   }, [currentAudioLessonId]);
 

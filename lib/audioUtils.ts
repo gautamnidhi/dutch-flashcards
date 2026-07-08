@@ -45,6 +45,7 @@ export function normalizeSavedLessons(
       createdAt: lesson.createdAt || new Date().toISOString(),
       fileName: String(lesson.fileName || "").trim(),
       fileSize: Number(lesson.fileSize || 0),
+      folder: lesson.folder ? String(lesson.folder).trim() : undefined,
     }));
 }
 
